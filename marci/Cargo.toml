@@ -1,0 +1,17 @@
+[package]
+name = "marci"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+redis = { version = "0.23", features = ["tokio-comp", "json"] }
+tokio = { version = "1.32", features = ["full"] }
+rumqttc = { version = "0.22", features = ["url"] }
+ckb-discovery-types = { path = "../types" }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1" }
+log = "0.4"
+env_logger = "0.10"
+ipinfo = "2.1.0"

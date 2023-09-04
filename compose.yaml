@@ -1,0 +1,18 @@
+services:
+  redis:
+    image: 'bitnami/redis:latest'
+    environment:
+      - REDIS_PASSWORD=CkBdIsCoVeRy
+    volumes:
+      - ./data/redis:/bitnami/redis/data
+    ports:
+      - '6379:6379'
+  mqttd:
+    image: 'bytebeamio/rumqttd'
+    ports:
+      - '1883:1883'
+      - '1884:1884'
+
+networks:
+  ckb-discovery:
+    driver: bridge

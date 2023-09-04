@@ -1,0 +1,27 @@
+[package]
+name = "ckb-discovery"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[workspace]
+members = [
+    "marci",
+    "types",
+]
+
+[dependencies]
+rumqttc = { version = "0.22", features = ["url"] }
+tokio = { version = "1.32", features = ["full"] }
+tokio-util = { version = "0.7.8" }
+ckb-discovery-types = { path = "./types" }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1" }
+ckb-types = "0.111.0-rc11"
+p2p = { package = "tentacle", version = "0.4" }
+log = "0.4"
+env_logger = "0.10"
+async-trait = "0.1.73"
+snap = "1"
+bs58 = "0.5"
