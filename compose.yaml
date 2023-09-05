@@ -1,5 +1,7 @@
 services:
   redis:
+    networks:
+      - ckb-discovery
     image: 'bitnami/redis:latest'
     environment:
       - REDIS_PASSWORD=CkBdIsCoVeRy
@@ -8,11 +10,15 @@ services:
     ports:
       - '6379:6379'
   mqtt:
+    networks:
+      - ckb-discovery
     image: 'bytebeamio/rumqttd'
     ports:
       - '1883:1883'
       - '1884:1884'
   exposed:
+    networks:
+      - ckb-discovery
     environment:
       - REDIS_URL=redis://:CkBdIsCoVeRy@redis
     build:
@@ -23,6 +29,8 @@ services:
     depends_on:
       - redis
   marci:
+    networks:
+      - ckb-discovery
     environment:
       - REDIS_URL=redis://:CkBdIsCoVeRy@redis
       - MQTT_URL=mqtt://mqtt:1883

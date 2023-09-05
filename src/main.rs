@@ -107,7 +107,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 }
             }
         }
-        error!("MQTT Context exited, Maybe service not ready...");
+        panic!("MQTT Context exited, Maybe service not ready...");
     });
 
     mqtt_tx.await?;
