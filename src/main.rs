@@ -21,36 +21,47 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let mqtt_url = env::var("MQTT_URL").unwrap_or("mqtt://localhost:1883".to_string());
 
     let mut mqttoptions = MqttOptions::parse_url(format!("{}?client_id=CKB_DISCOVERY", mqtt_url))?;
-    mqttoptions.set_keep_alive(Duration::from_secs(15));
+    mqttoptions.set_keep_alive(Duration::from_secs(30)).set_clean_session(true);
 
     let (mut client, mut context) = AsyncClient::new(mqttoptions, 30);
     client.subscribe("peer/needs_dial", QoS::AtMostOnce).await.expect("MQTT Failed to subscribe");
-    let mqtt_ctx = client.clone().to_owned();
+
+    let builder_fn = |network: CKBNetworkType|{
+        let mqtt_ctx = client.clone().to_owned();
+        let mut service_builder = p2p::builder::ServiceBuilder::new();
+        let handler = Handler::new(network.clone(), mqtt_ctx);
+
+        for meta in handler.build_protocol_metas() {
+            service_builder = service_builder.insert_protocol(meta);
+        }
+        service_builder
+            .forever(true)
+            .timeout(Duration::from_secs(15))
+            .key_pair(SecioKeyPair::secp256k1_generated())
+            .yamux_config(Config::default())
+            .set_recv_buffer_size( 24 * 1024 * 1024 )
+            .set_send_buffer_size(24 * 1024 * 1024)
+            .timeout(Duration::from_secs(30))
+            .build(handler)
+    };
+
+    let mut mirana_service = builder_fn(CKBNetworkType::Mirana);
+    let mut pudge_service = builder_fn(CKBNetworkType::Pudge);
 
 
-    let network = env::var("CKB_NETWORK").unwrap_or("pudge".to_string());
-    let handler = Handler::new(CKBNetworkType::from(network), mqtt_ctx);
-    let mut service_builder = p2p::builder::ServiceBuilder::new();
-
-    for meta in handler.build_protocol_metas() {
-        service_builder = service_builder.insert_protocol(meta);
-    }
-
-    let mut service = service_builder
-        .forever(true)
-        .key_pair(SecioKeyPair::secp256k1_generated())
-        .yamux_config(Config::default())
-        .timeout(Duration::from_secs(30))
-        .build(handler);
-
-    let controller = service.control().to_owned();
+    let mirana_controller = mirana_service.control().to_owned();
+    let pudge_controller = pudge_service.control().to_owned();
 
     let service_tx = tokio::spawn(async move {
         loop {
             tokio::select! {
-                _ = service.run() => {
+                _ = mirana_service.run() => {
 
-                }
+                },
+
+                _ = pudge_service.run() => {
+
+                },
             }
         }
     });
@@ -63,11 +74,19 @@ async fn main() -> Result<(), Box<dyn Error>> {
                         "peer/needs_dial" => { // received a dial signal
                             match serde_json::from_slice::<NodeMetaInfo>(raw_message.payload.as_ref()) {
                                 Ok(node) => {
+                                    info!("Start dial {:?}", node);
                                     let addrs = meta_info_to_addr(&node);
                                     for addr in addrs {
                                         if let Ok(addr) = addr {
-                                            info!("Start dial {:?}", addr.clone());
-                                            let res = controller.dial(addr.clone(), TargetProtocol::All).await;
+                                            let res = match node.network {
+                                                CKBNetworkType::Pudge => {
+                                                    pudge_controller.dial(addr.clone(), TargetProtocol::All).await
+                                                },
+                                                CKBNetworkType::Mirana => {
+                                                    mirana_controller.dial(addr.clone(), TargetProtocol::All).await
+                                                },
+                                                _ => unreachable!(),
+                                            } ;
                                             if res.is_err() {
                                                 error!("Failed to dial {:?}!", addr.to_string());
                                             }
@@ -92,6 +111,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     });
 
     mqtt_tx.await?;
+    service_tx.await?;
 
     Ok(())
 }

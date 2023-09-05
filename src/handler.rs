@@ -4,13 +4,14 @@ use ckb_types::packed;
 use ckb_types::prelude::*;
 use p2p::traits::{ServiceHandle, ServiceProtocol, SessionProtocol};
 use p2p::context::{ProtocolContext, ProtocolContextMutRef, ServiceContext};
-use p2p::service::{ProtocolHandle, ProtocolMeta, ServiceError, ServiceEvent};
+use p2p::service::{ProtocolHandle, ProtocolMeta, ServiceError, ServiceEvent, TargetProtocol, TargetSession};
 use log::{info, error, debug};
 use p2p::builder::MetaBuilder;
 use std::time::{Duration, Instant};
 use p2p::bytes::BytesMut;
 use p2p::multiaddr::Multiaddr;
 use rumqttc::QoS;
+use tokio::time::interval;
 use tokio_util::codec::{Encoder, LengthDelimitedCodec};
 use ckb_discovery_types::{CKBNetworkType, PeerInfo, ReachableInfo};
 use crate::compress::{compress, decompress};
@@ -18,6 +19,8 @@ use crate::message::build_discovery_get_nodes;
 use crate::network::{addr_to_endpoint, addr_to_node_meta, get_bootnodes};
 use crate::support_protocols::SupportProtocols;
 
+const DISCOVERY_TOKEN: u64 = 1;
+const DISCOVERY_INTERVAL: Duration = Duration::from_secs(10);
 
 pub struct Handler {
     network_type: CKBNetworkType,
@@ -70,7 +73,7 @@ impl Handler {
         ]
     }
 
-    async fn connected_discovery(&mut self, context: ProtocolContextMutRef<'_>, protocol_version: &str) {
+    async fn connected_discovery(&mut self, context: &ProtocolContextMutRef<'_>, protocol_version: &str) {
         let discovery_get_node_message = build_discovery_get_nodes(None, 1000u32, 1u32);
         if protocol_version == "0.0.1" {
             let mut codec = LengthDelimitedCodec::new();
@@ -79,10 +82,14 @@ impl Handler {
                 .encode(discovery_get_node_message.as_bytes(), &mut bytes)
                 .expect("encode must be success");
             let message_bytes = bytes.freeze();
-            context.send_message(message_bytes).await.unwrap();
+            if let Err(error) = context.send_message(message_bytes).await {
+                error!("Failed to send discovery to {}", context.session.address);
+            }
         } else {
             let message_bytes = discovery_get_node_message.as_bytes();
-            context.send_message(message_bytes).await.unwrap();
+            if let Err(error) = context.send_message(message_bytes).await {
+                error!("Failed to send discovery to {}", context.session.address);
+            }
         }
     }
 
@@ -166,7 +173,7 @@ impl ServiceHandle for Handler {
         match &error {
             ServiceError::DialerError { address, error } => {
                 // failed to dial, report unknown
-                info!("failed to dail {:?}", address.to_string());
+                debug!("failed to dail {:?}", address.to_string());
                 if let Err(err) = self.mqtt_context.publish("peer/unknown", QoS::AtMostOnce, false, serde_json::to_string(&addr_to_node_meta(address, self.network_type)).unwrap_or_default()).await {
                     error!("Failed to publish address to mqtt!");
                 }
@@ -182,13 +189,13 @@ impl ServiceHandle for Handler {
     async fn handle_event(&mut self, _control: &mut ServiceContext, event: ServiceEvent) {
         match event {
             ServiceEvent::SessionOpen { session_context: session} => {
-                info!("Session open: {:?}", session);
+                debug!("Session open: {:?}", session);
             },
             ServiceEvent::SessionClose { session_context: session} => {
-                info!("Session close: {:?}", session);
+                debug!("Session close: {:?}", session.clone());
             },
             _ => {
-                info!("Session sevent: {:?}", event);
+                debug!("Session event: {:?}", event);
             }, // we don't care about this
         }
     }
@@ -208,7 +215,7 @@ impl ServiceProtocol for Handler {
     }
 
     async fn connected(&mut self, context: ProtocolContextMutRef<'_>, protocol_version: &str) {
-        info!(
+        debug!(
             "Handler open protocol, protocol_name: {} address: {}",
             context
                 .protocols()
@@ -219,12 +226,13 @@ impl ServiceProtocol for Handler {
         );
 
         if context.proto_id() == SupportProtocols::Discovery.protocol_id() {
-            self.connected_discovery(context, protocol_version).await
+            context.set_service_notify(SupportProtocols::Discovery.protocol_id(), DISCOVERY_INTERVAL, DISCOVERY_TOKEN).await.unwrap_or_default();
+            self.connected_discovery(&context, protocol_version).await;
         }
     }
 
     async fn disconnected(&mut self, context: ProtocolContextMutRef<'_>) {
-        info!(
+        debug!(
             "Handler close protocol, protocol_name: {}, address: {:?}",
             context
                 .protocols()
@@ -241,6 +249,21 @@ impl ServiceProtocol for Handler {
             self.received_discovery(context, data);
         } else if context.proto_id == SupportProtocols::Identify.protocol_id() {
             self.received_identify(context, data);
+        }
+    }
+
+    async fn notify(&mut self, context: &mut ProtocolContext, token: u64) {
+        match token {
+            DISCOVERY_TOKEN => {
+                let discovery_get_node_message = build_discovery_get_nodes(None, 1000u32, 1u32);
+                let message_bytes = discovery_get_node_message.as_bytes();
+                if let Err(error) = context.quick_filter_broadcast(TargetSession::All, SupportProtocols::Discovery.protocol_id(), message_bytes).await {
+                    error!("Failed to broadcast discovery , error: {}", error);
+                }
+            },
+            _ => {
+
+            }
         }
     }
 

@@ -12,6 +12,10 @@ services:
     ports:
       - '1883:1883'
       - '1884:1884'
+  marci:
+    build: ./marci
+    ports:
+      - '1800:1800'
 
 networks:
   ckb-discovery:

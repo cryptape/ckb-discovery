@@ -1,5 +1,5 @@
 [package]
-name = "marci"
+name = "exposed"
 version = "0.1.0"
 edition = "2021"
 
@@ -8,11 +8,14 @@ edition = "2021"
 [dependencies]
 redis = { version = "0.23", features = ["tokio-comp", "json"] }
 tokio = { version = "1.32", features = ["full"] }
-rumqttc = { version = "0.22", features = ["url"] }
 ckb-discovery-types = { path = "../types" }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1" }
 log = "0.4"
 env_logger = "0.10"
-ipinfo = "2.1.0"
-lazy_static = "1.4.0"
+actix-rt = "2.8.0"
+actix-web = { version = "4.3.1" }
+actix-cors = "0.6"
+chrono = { version = "0.4" , features = ["serde"]}
+regex = "1.8.1"
+clap = "3"
