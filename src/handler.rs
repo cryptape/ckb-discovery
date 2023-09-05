@@ -115,7 +115,7 @@ impl Handler {
                     let mqtt_context = self.mqtt_context.clone().to_owned();
 
                     tokio::spawn(async move {
-                        if let Err(error) = mqtt_context.publish("peer/online", QoS::AtMostOnce, true, serde_json::to_string(&peer_info).unwrap_or_default().as_bytes()).await {
+                        if let Err(error) = mqtt_context.publish("peer/online", QoS::AtLeastOnce, false, serde_json::to_string(&peer_info).unwrap_or_default().as_bytes()).await {
                             error!("Failed to publish peer {:?} to online!", peer_info);
                         }
                     });
@@ -153,7 +153,7 @@ impl Handler {
                         tokio::spawn(async move {
                             let mut interval = interval(Duration::from_millis(500));
                             interval.tick().await;
-                            if let Err(error) = mqtt_context.publish("peer/reachable", QoS::AtMostOnce, true, serde_json::to_string(&ReachableInfo::new(meta.clone(), from_shadow.clone())).unwrap_or_default().as_bytes()).await {
+                            if let Err(error) = mqtt_context.publish("peer/reachable", QoS::AtLeastOnce, false, serde_json::to_string(&ReachableInfo::new(meta.clone(), from_shadow.clone())).unwrap_or_default().as_bytes()).await {
                                 error!("Failed to publish peer {:?} to online! error: {:?}", meta, error);
                             }
                         });
