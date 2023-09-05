@@ -4,6 +4,7 @@ use std::error::Error;
 use std::time::Duration;
 use ckb_discovery_types::{CKBNetworkType, NodeMetaInfo, PeerInfo};
 use log::{debug, error, info};
+use nanoid::nanoid;
 use p2p::multiaddr::{MultiAddr, Multiaddr};
 use p2p::secio::SecioKeyPair;
 use p2p::service::{TargetProtocol, TargetSession};
@@ -20,7 +21,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let mqtt_url = env::var("MQTT_URL").unwrap_or("mqtt://localhost:1883".to_string());
 
-    let mut mqttoptions = MqttOptions::parse_url(format!("{}?client_id=CKB_DISCOVERY", mqtt_url))?;
+    let mut mqttoptions = MqttOptions::parse_url(format!("{}?client_id=CKB_DISCOVERY-{}", mqtt_url, nanoid!()))?;
     mqttoptions.set_keep_alive(Duration::from_secs(30)).set_clean_session(true);
 
     let (mut client, mut context) = AsyncClient::new(mqttoptions, 30);
