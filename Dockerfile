@@ -4,7 +4,7 @@ LABEL author="Code Monad<codemonad@cryptape.com>"
 COPY . .
 RUN cargo build --release
 
-FROM ubuntu:20.04
+FROM debian:12
 
 WORKDIR /app/ckb-discovery
 COPY --from=build /usr/src/ckb-discovery/target/release/ckb-discovery /app/ckb-discovery

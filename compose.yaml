@@ -7,17 +7,31 @@ services:
       - ./data/redis:/bitnami/redis/data
     ports:
       - '6379:6379'
-  mqttd:
+  mqtt:
     image: 'bytebeamio/rumqttd'
     ports:
       - '1883:1883'
       - '1884:1884'
+  exposed:
+    environment:
+      - REDIS_URL=redis://:CkBdIsCoVeRy@redis
+    build:
+      context: ./
+      dockerfile: ./exposed/Dockerfile
+    ports:
+      - '1800:1800'
+    depends_on:
+      - redis
   marci:
+    environment:
+      - REDIS_URL=redis://:CkBdIsCoVeRy@redis
+      - MQTT_URL=mqtt://mqtt:1883
     build:
       context: ./
       dockerfile: ./marci/Dockerfile
-    ports:
-      - '1800:1800'
+    depends_on:
+      - mqtt
+      - redis
 
 networks:
   ckb-discovery:

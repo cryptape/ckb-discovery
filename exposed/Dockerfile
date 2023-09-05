@@ -3,13 +3,13 @@ WORKDIR /usr/src/ckb-discovery
 LABEL author="Code Monad<codemonad@cryptape.com>"
 COPY . .
 RUN cd /usr/src/ckb-discovery/exposed
-RUN cargo build --release
+RUN cargo build -p exposed --release
 
-FROM ubuntu:20.04
+FROM debian:12
 
 WORKDIR /app/exposed
-COPY --from=build /usr/src/ckb-discovery/exposed/target/release/exposed /app/exposed
+COPY --from=build /usr/src/ckb-discovery/target/release/exposed /app/exposed
 #COPY --from=build /usr/src/marci/dist /app/marci/dist
-ENV REDIS_URL="redis://:CkBdIsCoVeRy@redis"
-ENV BIND="0.0.0.0:1800"
-CMD ["/app/exposed/exposed --redis-url $DB_URL --bind $BIND"]
+ENV REDIS_URL=redis://:CkBdIsCoVeRy@redis
+ENV BIND=0.0.0.0:1800
+CMD /app/exposed/exposed --redis-url $REDIS_URL --bind $BIND
