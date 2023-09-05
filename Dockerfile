@@ -5,7 +5,7 @@ COPY . .
 RUN cargo build --release
 
 FROM debian:12
-
+RUN apt-get update && apt-get install libssl3 -y
 WORKDIR /app/ckb-discovery
 COPY --from=build /usr/src/ckb-discovery/target/release/ckb-discovery /app/ckb-discovery
 #COPY --from=build /usr/src/marci/dist /app/marci/dist
