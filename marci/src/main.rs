@@ -144,7 +144,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mqtt_url = env::var("MQTT_URL").unwrap_or("mqtt://localhost:1883".to_string());
 
     let mut mqttoptions = MqttOptions::parse_url(format!("{}?client_id=MARCI", mqtt_url))?;
-    mqttoptions.set_keep_alive(Duration::from_secs(30)).set_clean_session(true);
+    mqttoptions.set_keep_alive(Duration::from_secs(30)).set_request_channel_capacity(5000).set_clean_session(true);
 
 
     let (mut client, mut context) = AsyncClient::new(mqttoptions, 300);
