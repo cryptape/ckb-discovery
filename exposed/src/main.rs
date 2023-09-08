@@ -94,7 +94,7 @@ async fn get_peers(network: CKBNetworkType, offline_min: u64, unknown_offline_mi
             let version_str = client.get(format!("peer.online.{}", peer_id)).await?;
             version_str
         } else {
-            "Unknown".to_string()
+            String::default()
         };
 
         let version_short = if !online_peers.contains(&peer_id) {
