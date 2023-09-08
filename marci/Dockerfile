@@ -2,6 +2,7 @@ FROM rust:1.72.0 as build
 WORKDIR /usr/src/ckb-discovery
 LABEL author="Code Monad<codemonad@cryptape.com>"
 COPY . .
+RUN apt-get update && apt-get install libssl-dev build-essential cmake -y
 RUN cd /usr/src/ckb-discovery/
 RUN cargo build -p marci --release
 

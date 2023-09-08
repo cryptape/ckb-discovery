@@ -4,7 +4,7 @@ services:
       - ckb-discovery
     image: 'bitnami/redis:latest'
     environment:
-      - REDIS_PASSWORD=CkBdIsCoVeRy
+      - REDIS_PASSWORD=${REDIS_PASS}
     volumes:
       - ./data/redis:/bitnami/redis/data
     ports:
@@ -15,6 +15,8 @@ services:
     image: "emqx/emqx"
     environment:
       - EMQX_ALLOW_ANONYMOUS=false
+      - EMQX_AUTH__USER__1__USERNAME=${MQTT_USER}
+      - EMQX_AUTH__USER__1__PASSWORD=${MQTT_PASS}
     restart: unless-stopped
     ports:
       - "1883:1883"
@@ -23,7 +25,7 @@ services:
     networks:
       - ckb-discovery
     environment:
-      - REDIS_URL=redis://:CkBdIsCoVeRy@redis
+      - REDIS_URL=redis://:${REDIS_PASS}@redis
     build:
       context: ./
       dockerfile: ./exposed/Dockerfile
@@ -35,8 +37,8 @@ services:
     networks:
       - ckb-discovery
     environment:
-      - REDIS_URL=redis://:CkBdIsCoVeRy@redis
-      - MQTT_URL=mqtt://ckb:ckbdiscovery@mqtt:1883
+      - REDIS_URL=redis://:${REDIS_PASS}@redis
+      - MQTT_URL=mqtt://${MQTT_USER}:${MQTT_PASS}@mqtt:1883
     build:
       context: ./
       dockerfile: ./marci/Dockerfile
