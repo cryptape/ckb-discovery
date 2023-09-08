@@ -19,6 +19,8 @@ This is a query service provided for the frontend
 
 ## How to start
 
+First, you'll need to cp .env.example and modify the value to secure your MQTT and Reidis.
+
 For the data center, run `docker-compose up -d`, it will:
 1. start a MQTT service, expose at `1883`&`1884`
 2. start a Redis server, expose at `6379`
@@ -26,6 +28,6 @@ For the data center, run `docker-compose up -d`, it will:
 4. start marci service
 
 
-If you want to run a dialer, run `docker build . -t ckb-discovery && docker run --name ckb-discovery -e MQTT_URL="mqtt://127.0.0.1:1883" -d ckb-discovery`
+If you want to run a dialer, run `docker build . -t ckb-discovery && docker run --restart always --name ckb-discovery -e MQTT_URL="mqtt://54.255.71.126:1883" -d ckb-discovery`
 
 Remember to replace `127.0.0.1` with the data center ip.
