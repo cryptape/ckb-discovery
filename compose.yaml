@@ -38,7 +38,9 @@ services:
       - ckb-discovery
     environment:
       - REDIS_URL=redis://:${REDIS_PASS}@redis
-      - MQTT_URL=mqtt://${MQTT_USER}:${MQTT_PASS}@mqtt:1883
+      - MQTT_URL=mqtt://mqtt:1883
+      - MQTT_USER=${MQTT_USER}
+      - MQTT_PASS=${MQTT_PASS}
     build:
       context: ./
       dockerfile: ./marci/Dockerfile
