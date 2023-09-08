@@ -129,7 +129,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                     }
                 }
             } else {
-                error!("Lost connection! Attempting reconnect...");
+                panic!("Lost connection! Attempting reconnect...");
             }
         }
         panic!("MQTT Context exited, Maybe service not ready...");
