@@ -12,7 +12,7 @@ members = [
 ]
 
 [dependencies]
-paho-mqtt = { version = "0.12", default-features=false, features=["bundled"] }
+paho-mqtt = { version = "0.12", default-features=false, features=["vendored-ssl"] }
 tokio = { version = "1.32", features = ["full"] }
 tokio-util = { version = "0.7.8" }
 ckb-discovery-types = { path = "./types" }
