@@ -221,7 +221,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 }
             } else {
-                error!("Lost connection! Attempting reconnect...");
+                panic!("Lost connection! Attempting reconnect...");
             }
         }
         Ok::<(), mqtt::Error>(())
