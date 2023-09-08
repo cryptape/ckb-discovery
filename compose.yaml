@@ -15,6 +15,7 @@ services:
     image: "emqx/emqx"
     environment:
       - EMQX_ALLOW_ANONYMOUS=false
+      - EMQX_DASHBOARD__DEFAULT_PASSWORD=${MQTT_ADMIN_PASS}
       - EMQX_AUTH__USER__1__USERNAME=${MQTT_USER}
       - EMQX_AUTH__USER__1__PASSWORD=${MQTT_PASS}
     restart: unless-stopped
