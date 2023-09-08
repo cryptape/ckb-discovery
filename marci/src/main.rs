@@ -326,6 +326,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
                 info!("Requested {} reachable peers", peers_reachable.len());
                 reachable_broadcast_interval.as_mut().reset(Instant::now() + Duration::from_secs(30));
+
+                // Update Service Info
+                con.set::<String, u64, u64>("service.last_update".to_string(), SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs()).await.unwrap_or_default();
             },
         }
     }
