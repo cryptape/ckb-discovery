@@ -10,10 +10,10 @@ use p2p::builder::MetaBuilder;
 use std::time::{Duration, Instant};
 use p2p::bytes::BytesMut;
 use p2p::multiaddr::Multiaddr;
-use rumqttc::QoS;
-use tokio::time::interval;
 use tokio_util::codec::{Encoder, LengthDelimitedCodec};
 use ckb_discovery_types::{CKBNetworkType, PeerInfo, ReachableInfo};
+use paho_mqtt as mqtt;
+use paho_mqtt::QOS_1;
 use crate::compress::{compress, decompress};
 use crate::message::build_discovery_get_nodes;
 use crate::network::{addr_to_endpoint, addr_to_node_meta, get_bootnodes};
@@ -24,7 +24,7 @@ const DISCOVERY_INTERVAL: Duration = Duration::from_secs(10);
 
 pub struct Handler {
     network_type: CKBNetworkType,
-    mqtt_context: rumqttc::AsyncClient,
+    mqtt_context: mqtt::AsyncClient,
 }
 
 impl Clone for Handler {
@@ -38,7 +38,7 @@ impl Clone for Handler {
 
 
 impl Handler {
-    pub fn new(network_type: CKBNetworkType, mqtt_context: rumqttc::AsyncClient) -> Self {
+    pub fn new(network_type: CKBNetworkType, mqtt_context: mqtt::AsyncClient) -> Self {
         Self {
             network_type,
             mqtt_context
@@ -115,7 +115,7 @@ impl Handler {
                     let mqtt_context = self.mqtt_context.clone().to_owned();
 
                     tokio::spawn(async move {
-                        if let Err(error) = mqtt_context.publish("peer/online", QoS::AtLeastOnce, false, serde_json::to_string(&peer_info).unwrap_or_default().as_bytes()).await {
+                        if let Err(error) = mqtt_context.publish(mqtt::Message::new("peer/online", serde_json::to_vec(&peer_info).unwrap_or_default(), mqtt::QOS_1)).await {
                             error!("Failed to publish peer {:?} to online!", peer_info);
                         }
                     });
@@ -151,7 +151,16 @@ impl Handler {
                         let mqtt_context = self.mqtt_context.clone().to_owned();
 
                         tokio::spawn(async move {
-                            if let Err(error) = mqtt_context.publish("peer/reachable", QoS::AtLeastOnce, false, serde_json::to_string(&ReachableInfo::new(meta.clone(), from_shadow.clone())).unwrap_or_default().as_bytes()).await {
+                            if let Err(error) = mqtt_context.publish(
+                                mqtt::Message::new(
+                                    "peer/reachable",
+                                    serde_json::to_vec(
+                                        &ReachableInfo::new(
+                                            meta.clone(),
+                                            from_shadow.clone())
+                                    ).unwrap_or_default(),
+                                    QOS_1)
+                            ).await {
                                 error!("Failed to publish peer {:?} to online! error: {:?}", meta, error);
                             }
                         });
@@ -174,7 +183,7 @@ impl ServiceHandle for Handler {
             ServiceError::DialerError { address, error } => {
                 // failed to dial, report unknown
                 debug!("failed to dail {:?}", address.to_string());
-                if let Err(err) = self.mqtt_context.publish("peer/unknown", QoS::AtMostOnce, false, serde_json::to_string(&addr_to_node_meta(address, self.network_type)).unwrap_or_default()).await {
+                if let Err(error) = self.mqtt_context.publish(mqtt::Message::new("peer/unknown", serde_json::to_vec(&addr_to_node_meta(address, self.network_type)).unwrap_or_default(), mqtt::QOS_1)).await {
                     error!("Failed to publish address to mqtt!");
                 }
             },

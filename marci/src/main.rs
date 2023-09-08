@@ -1,6 +1,6 @@
 extern crate core;
 
-use rumqttc::{MqttOptions, AsyncClient, QoS, SubscribeFilter};
+use paho_mqtt as mqtt;
 use std::time::UNIX_EPOCH;
 use redis::{AsyncCommands, Commands};
 use tokio::time::{Duration, Instant, interval};
@@ -12,6 +12,7 @@ use ipinfo::{IpDetails, IpError, IpInfo};
 use lazy_static::lazy_static;
 use std::sync::Mutex;
 use std::collections::HashMap;
+use futures::StreamExt;
 
 
 async fn check_peer_online(con: &mut redis::aio::Connection, peer_id: String) -> bool {
@@ -141,69 +142,94 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let (unknown_tx, mut unknown_rx) = tokio::sync::mpsc::channel::<NodeMetaInfo>(100);
 
-    let mqtt_url = env::var("MQTT_URL").unwrap_or("mqtt://localhost:1883".to_string());
+    let mqtt_url = env::var("MQTT_URL").unwrap_or("mqtt:1883".to_string());
+    let mqtt_user = env::var("MQTT_USER").unwrap_or("ckb".to_string());
+    let mqtt_pass = env::var("MQTT_PASS").unwrap_or("ckbdiscovery".to_string());
 
-    let mut mqttoptions = MqttOptions::parse_url(format!("{}?client_id=MARCI", mqtt_url))?;
-    mqttoptions.set_keep_alive(Duration::from_secs(30)).set_request_channel_capacity(5000).set_clean_session(true);
+    let create_ops = mqtt::CreateOptionsBuilder::new()
+        .server_uri(mqtt_url.clone())
+        .client_id("MARCI_v5")
+        .max_buffered_messages(1000)
+        .finalize();
+
+    let mut mqtt_client = mqtt::AsyncClient::new(create_ops).expect("Failed to create MQTT client");
+
+    let conn_opts = mqtt::ConnectOptionsBuilder::new()
+        .clean_start(true)
+        .keep_alive_interval(Duration::from_millis(300))
+        .automatic_reconnect(Duration::from_millis(500), Duration::from_millis(2000))
+        .user_name(mqtt_user)
+        .password(mqtt_pass)
+        .properties(mqtt::properties![mqtt::PropertyCode::SessionExpiryInterval => 5000])
+        .finalize();
+
+    mqtt_client.connect(conn_opts).await?;
+
+    println!("Connected to MQTT!");
+
+    let mut mqtt_con = mqtt_client.get_stream(None);
+
+    let sub_context = mqtt_client.clone().to_owned();
+    let pub_context = mqtt_client.clone().to_owned();
+
+    let topics = vec!["peer/online", "peer/reachable", "peer/unknown"];
+    let qos = vec![mqtt::QOS_1,mqtt::QOS_1,mqtt::QOS_1];
+
+    let sub_opts = vec![mqtt::SubscribeOptions::with_retain_as_published(); topics.len()];
+
+    mqtt_client.subscribe_many_with_options(&topics, &qos, &sub_opts, None).await?;
 
 
-    let (mut client, mut context) = AsyncClient::new(mqttoptions, 300);
-
-    client.subscribe_many(vec!["peer/online", "peer/reachable", "peer/unknown"].into_iter().map(|x| {
-        SubscribeFilter::new(x.to_string(), QoS::AtMostOnce)
-    }).collect::<Vec<_>>()).await?;
-
-    let redis_url = env::var("REDIS_URL").unwrap_or("redis://:CkBdIsCoVeRy@127.0.0.1".to_string());
+    let redis_url = env::var("REDIS_URL").unwrap_or("redis://:CkBdIsCoVeRy@redis".to_string());
 
     // redis context
     let redis_client = redis::Client::open(redis_url)?;
     let mut con = redis_client.get_tokio_connection().await?;
 
+
     //mqtt context
     let mqtt_tx = tokio::spawn(async move {
-        while let Ok(notification) = context.poll().await {
-            match notification {
-                rumqttc::Event::Incoming(rumqttc::Packet::Publish(raw_message)) => { // received a new message
-                    match raw_message.topic.as_str() {
-                        "peer/online" => {
-                            if let Ok(msg) = serde_json::from_slice::<PeerInfo>(raw_message.payload.as_ref()) {
-                                info!("Received Online peer, {:?}", msg);
-                                if let Err(error) = online_tx.send(msg).await {
-                                    error!("Failed to send peer to online_tx, error: {:?}", error);
-                                }
+        while let Some(msg_opt) = mqtt_con.next().await {
+            if let Some(msg) = msg_opt {
+                match msg.topic() {
+                    "peer/online" => {
+                        if let Ok(msg) = serde_json::from_slice::<PeerInfo>(msg.payload()) {
+                            info!("Received Online peer, {:?}", msg);
+                            if let Err(error) = online_tx.send(msg).await {
+                                error!("Failed to send peer to online_tx, error: {:?}", error);
                             }
-                        },
-                        "peer/reachable" => {
-                            if let Ok(msg) = serde_json::from_slice::<ReachableInfo>(raw_message.payload.as_ref()) {
-                                info!("Received Reachable peer, {:?}", msg);
-                                if let Err(error) = reachable_tx.send(msg).await {
-                                    error!("Failed to send peer to reachable_tx, error: {:?}", error);
-                                }
-                            }
-                        },
-                        "peer/unknown" => {
-                            if let Ok(msg) = serde_json::from_slice::<NodeMetaInfo>(raw_message.payload.as_ref()) {
-                                info!("Received Unknown peer, {:?}", msg);
-                                if let Err(error) = unknown_tx.send(msg).await {
-                                    error!("Failed to send peer to unknown_tx, error: {:?}", error);
-                                }
-                            }
-                        },
-                        _ => { // other channel
-                            info!("Got message from: {:?}, ignored", raw_message.topic);
                         }
+                    },
+                    "peer/reachable" => {
+                        if let Ok(msg) = serde_json::from_slice::<ReachableInfo>(msg.payload()) {
+                            info!("Received Reachable peer, {:?}", msg);
+                            if let Err(error) = reachable_tx.send(msg).await {
+                                error!("Failed to send peer to reachable_tx, error: {:?}", error);
+                            }
+                        }
+                    },
+                    "peer/unknown" => {
+                        if let Ok(msg) = serde_json::from_slice::<NodeMetaInfo>(msg.payload()) {
+                            info!("Received Unknown peer, {:?}", msg);
+                            if let Err(error) = unknown_tx.send(msg).await {
+                                error!("Failed to send peer to unknown_tx, error: {:?}", error);
+                            }
+                        }
+                    },
+                    _ => { // other channel
+                    info!("Got message from: {}, ignored", msg.topic());
                     }
                 }
-                _ => {
-                    debug!("GENERIC MQTT NOTIFY: {:?}", notification)
-                }
+            } else {
+                error!("Lost connection! Attempting reconnect...");
             }
         }
-        error!("MQTT Context exited...");
+        Ok::<(), mqtt::Error>(())
     });
 
     let reachable_broadcast_interval = tokio::time::sleep(Duration::from_secs(30));
     tokio::pin!(reachable_broadcast_interval);
+
 
     loop {
         tokio::select! {
@@ -296,7 +322,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         addresses,
                         network: CKBNetworkType::from(network_string),
                     };
-                    let _ = client.publish("peer/needs_dial", QoS::AtMostOnce, false, serde_json::to_string(&meta_info).unwrap_or_default()).await;
+                    pub_context.publish(mqtt::Message::new("peer/needs_dial", serde_json::to_string(&meta_info).unwrap_or_default(), mqtt::QOS_1)).await?;
                 }
                 info!("Requested {} reachable peers", peers_reachable.len());
                 reachable_broadcast_interval.as_mut().reset(Instant::now() + Duration::from_secs(30));

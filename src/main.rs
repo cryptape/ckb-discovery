@@ -1,7 +1,8 @@
 use std::env;
-use rumqttc::{AsyncClient, MqttOptions, QoS};
+use paho_mqtt as mqtt;
 use std::error::Error;
 use std::time::Duration;
+use futures::StreamExt;
 use ckb_discovery_types::{CKBNetworkType, NodeMetaInfo, PeerInfo};
 use log::{debug, error, info};
 use nanoid::nanoid;
@@ -10,6 +11,7 @@ use p2p::secio::SecioKeyPair;
 use p2p::service::{TargetProtocol, TargetSession};
 use p2p::SessionId;
 use p2p::yamux::Config;
+use paho_mqtt::{QOS_1, QOS_2};
 use ckb_discovery::handler::Handler;
 use ckb_discovery::network::{meta_info_to_addr};
 
@@ -19,16 +21,41 @@ async fn main() -> Result<(), Box<dyn Error>> {
     env::set_var("RUST_LOG", "info");
     env_logger::init();
 
-    let mqtt_url = env::var("MQTT_URL").unwrap_or("mqtt://localhost:1883".to_string());
+    let mqtt_url = env::var("MQTT_URL").unwrap_or("mqtt:1883".to_string());
+    let mqtt_user = env::var("MQTT_USER").unwrap_or("ckb".to_string());
+    let mqtt_pass = env::var("MQTT_PASS").unwrap_or("ckbdiscovery".to_string());
 
-    let mut mqttoptions = MqttOptions::parse_url(format!("{}?client_id=CKB_DISCOVERY-{}", mqtt_url, nanoid!()))?;
-    mqttoptions.set_keep_alive(Duration::from_secs(5)).set_request_channel_capacity(500).set_clean_session(true);
+    let create_ops = mqtt::CreateOptionsBuilder::new()
+        .server_uri(mqtt_url.clone())
+        .max_buffered_messages(500)
+        .client_id(format!("ckb-discovery-{}", nanoid!()))
+        .finalize();
 
-    let (mut client, mut context) = AsyncClient::new(mqttoptions, 1000);
-    client.subscribe("peer/needs_dial", QoS::AtMostOnce).await.expect("MQTT Failed to subscribe");
+    let mut mqtt_client = mqtt::AsyncClient::new(create_ops).expect("Failed to create MQTT client");
+
+    let conn_opts = mqtt::ConnectOptionsBuilder::new()
+        .clean_start(true)
+        .keep_alive_interval(Duration::from_millis(300))
+        .automatic_reconnect(Duration::from_millis(500), Duration::from_millis(2000))
+        .user_name(mqtt_user)
+        .password(mqtt_pass)
+        .properties(mqtt::properties![mqtt::PropertyCode::SessionExpiryInterval => 5000])
+        .finalize();
+
+    mqtt_client.connect(conn_opts).await?;
+
+    println!("Connected to MQTT!");
+
+    let mut mqtt_con = mqtt_client.get_stream(None);
+
+    let topic = "peer/needs_dial";
+
+    mqtt_client.subscribe(topic, QOS_1).await?;
+
+
 
     let builder_fn = |network: CKBNetworkType|{
-        let mqtt_ctx = client.clone().to_owned();
+        let mqtt_ctx = mqtt_client.clone().to_owned();
         let mut service_builder = p2p::builder::ServiceBuilder::new();
         let handler = Handler::new(network.clone(), mqtt_ctx);
 
@@ -68,44 +95,41 @@ async fn main() -> Result<(), Box<dyn Error>> {
     });
 
     let mqtt_tx = tokio::spawn(async move {
-        while let Ok(notification) = context.poll().await {
-            match notification {
-                rumqttc::Event::Incoming(rumqttc::Packet::Publish(raw_message)) => { // received a new message
-                    match raw_message.topic.as_str() {
-                        "peer/needs_dial" => { // received a dial signal
-                            match serde_json::from_slice::<NodeMetaInfo>(raw_message.payload.as_ref()) {
-                                Ok(node) => {
-                                    info!("Start dial {:?}", node);
-                                    let addrs = meta_info_to_addr(&node);
-                                    for addr in addrs {
-                                        if let Ok(addr) = addr {
-                                            let res = match node.network {
-                                                CKBNetworkType::Pudge => {
-                                                    pudge_controller.dial(addr.clone(), TargetProtocol::All).await
-                                                },
-                                                CKBNetworkType::Mirana => {
-                                                    mirana_controller.dial(addr.clone(), TargetProtocol::All).await
-                                                },
-                                                _ => unreachable!(),
-                                            } ;
-                                            if res.is_err() {
-                                                error!("Failed to dial {:?}!", addr.to_string());
-                                            }
+        while let Some(msg_opt) = mqtt_con.next().await {
+            if let Some(msg) = msg_opt {
+                match msg.topic() {
+                    "peer/needs_dial" => { // received a dial signal
+                        match serde_json::from_slice::<NodeMetaInfo>(msg.payload()) {
+                            Ok(node) => {
+                                info!("Start dial {:?}", node);
+                                let addrs = meta_info_to_addr(&node);
+                                for addr in addrs {
+                                    if let Ok(addr) = addr {
+                                        let res = match node.network {
+                                            CKBNetworkType::Pudge => {
+                                                pudge_controller.dial(addr.clone(), TargetProtocol::All).await
+                                            },
+                                            CKBNetworkType::Mirana => {
+                                                mirana_controller.dial(addr.clone(), TargetProtocol::All).await
+                                            },
+                                            _ => unreachable!(),
+                                        } ;
+                                        if res.is_err() {
+                                            error!("Failed to dial {:?}!", addr.to_string());
                                         }
                                     }
-                                },
-                                Err(error) => {
-                                    error!("{:?} not a valid multiaddr", raw_message.payload);
                                 }
+                            },
+                            Err(error) => {
+                                error!("{:?} not a valid multiaddr", msg.payload());
                             }
-                        },
-                        _ => {  // other channel
                         }
+                    },
+                    _ => {  // other channel
                     }
                 }
-                _ => {
-                    debug!("GENERIC MQTT NOTIFY: {:?}", notification)
-                }
+            } else {
+                error!("Lost connection! Attempting reconnect...");
             }
         }
         panic!("MQTT Context exited, Maybe service not ready...");

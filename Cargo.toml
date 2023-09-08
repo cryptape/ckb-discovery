@@ -4,7 +4,6 @@ version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [workspace]
 members = [
     "marci",
@@ -13,7 +12,7 @@ members = [
 ]
 
 [dependencies]
-rumqttc = { version = "0.22", features = ["url"] }
+paho-mqtt = { version = "0.12", default-features=false, features=["bundled"] }
 tokio = { version = "1.32", features = ["full"] }
 tokio-util = { version = "0.7.8" }
 ckb-discovery-types = { path = "./types" }
@@ -27,3 +26,4 @@ async-trait = "0.1.73"
 snap = "1"
 bs58 = "0.5"
 nanoid = "0.4.0"
+futures = { version = "0.3"}

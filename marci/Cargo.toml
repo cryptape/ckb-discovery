@@ -8,7 +8,7 @@ edition = "2021"
 [dependencies]
 redis = { version = "0.23", features = ["tokio-comp", "json"] }
 tokio = { version = "1.32", features = ["full"] }
-rumqttc = { version = "0.22", features = ["url"] }
+paho-mqtt = { version = "0.12"  }
 ckb-discovery-types = { path = "../types" }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1" }
@@ -16,3 +16,4 @@ log = "0.4"
 env_logger = "0.10"
 ipinfo = "2.1.0"
 lazy_static = "1.4.0"
+futures = { version = "0.3"}

@@ -12,10 +12,13 @@ services:
   mqtt:
     networks:
       - ckb-discovery
-    image: 'bytebeamio/rumqttd'
+    image: "emqx/emqx"
+    environment:
+      - EMQX_ALLOW_ANONYMOUS=false
+    restart: unless-stopped
     ports:
-      - '1883:1883'
-      - '1884:1884'
+      - "1883:1883"
+      - "18083:18083"
   exposed:
     networks:
       - ckb-discovery
@@ -33,7 +36,7 @@ services:
       - ckb-discovery
     environment:
       - REDIS_URL=redis://:CkBdIsCoVeRy@redis
-      - MQTT_URL=mqtt://mqtt:1883
+      - MQTT_URL=mqtt://ckb:ckbdiscovery@mqtt:1883
     build:
       context: ./
       dockerfile: ./marci/Dockerfile
