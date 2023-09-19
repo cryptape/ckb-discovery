@@ -6,6 +6,7 @@ use actix_cors::Cors;
 use actix_web::web::Data;
 use actix_web::{http, web, App, HttpResponse, HttpServer, Responder};
 use std::time::Duration;
+use actix_web::http::header::{CacheControl, CacheDirective};
 use chrono::{Utc, DateTime};
 use redis::{AsyncCommands, Commands};
 use regex::Regex;
@@ -28,7 +29,11 @@ async fn peer_handler(
     )
         .await
     {
-        Ok(peers) => HttpResponse::Ok().json(peers),
+        Ok(peers) => {
+            let mut builder = HttpResponse::Ok();
+            builder.insert_header(CacheControl(vec![CacheDirective::MaxAge(45u32)]));
+            HttpResponse::Ok().json(peers)
+        },
         Err(e) => {
             eprintln!("Error getting peers: {}", e);
             HttpResponse::InternalServerError().finish()
