@@ -14,7 +14,7 @@ impl From<String> for CKBNetworkType {
             "mirana"|"ckb"|"main" => CKBNetworkType::Mirana,
             "pudge"|"ckb_testnet"|"test" => CKBNetworkType::Pudge,
             "dev"|"ckb_dev" => CKBNetworkType::Dev,
-            _ => unreachable!(),
+            _ => CKBNetworkType::Mirana,
         }
     }
 }
