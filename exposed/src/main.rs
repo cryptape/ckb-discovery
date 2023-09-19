@@ -31,8 +31,8 @@ async fn peer_handler(
     {
         Ok(peers) => {
             let mut builder = HttpResponse::Ok();
-            builder.insert_header(CacheControl(vec![CacheDirective::MaxAge(45u32)]));
-            HttpResponse::Ok().json(peers)
+            builder.insert_header(CacheControl(vec![CacheDirective::MaxAge(45u32), CacheDirective::MinFresh(30u32)]));
+            builder.json(peers)
         },
         Err(e) => {
             eprintln!("Error getting peers: {}", e);
