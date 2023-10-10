@@ -1,7 +1,7 @@
 mod model;
 
 use std::str::FromStr;
-use std::time::{UNIX_EPOCH};
+use std::time::{SystemTime, UNIX_EPOCH};
 use actix_cors::Cors;
 use actix_web::web::Data;
 use actix_web::{http, web, App, HttpResponse, HttpServer, Responder};
@@ -13,31 +13,50 @@ use regex::Regex;
 use tokio::sync::Mutex;
 use crate::model::{Peer, QueryParams, ServiceStatus};
 use clap::Arg;
-use log::info;
 use ckb_discovery_types::CKBNetworkType;
+
+struct ServiceData {
+    client: Data<Mutex<redis::aio::Connection>>,
+    last_cache_update: Mutex<SystemTime>,
+    data: Mutex<Vec<Peer>>,
+}
 
 // Define a handler function for the "/peer" endpoint
 async fn peer_handler(
     query_params: web::Query<QueryParams>,
-    client: Data<Mutex<redis::aio::Connection>>,
+    mut data: Data<ServiceData>,
 ) -> impl Responder {
-    match get_peers(
-        CKBNetworkType::from(query_params.network.clone()),
-        query_params.offline_timeout,
-        query_params.unknown_offline_timeout,
-        &client,
-    )
-        .await
-    {
-        Ok(peers) => {
-            let mut builder = HttpResponse::Ok();
-            builder.insert_header(CacheControl(vec![CacheDirective::MaxAge(45u32), CacheDirective::MinFresh(30u32)]));
-            builder.json(peers)
-        },
-        Err(e) => {
-            eprintln!("Error getting peers: {}", e);
-            HttpResponse::InternalServerError().finish()
+    if data.data.lock().await.is_empty() || SystemTime::now().duration_since(data.last_cache_update.lock().await.clone()).unwrap_or_default().as_secs() > 30 {
+        let client = &data.client;
+        match get_peers(
+            CKBNetworkType::from(query_params.network.clone()),
+            query_params.offline_timeout,
+            query_params.unknown_offline_timeout,
+            &client,
+        ).await {
+            Ok(mut peers) => {
+                if let Ok(mut d) = data.data.try_lock() {
+                    d.clear();
+                    d.append(&mut peers);
+                    data.last_cache_update.lock().await.clone_from(&SystemTime::now());
+                    let mut builder = HttpResponse::Ok();
+                    builder.insert_header(CacheControl(vec![CacheDirective::MaxAge(45u32), CacheDirective::MinFresh(30u32)]));
+                    builder.json(d.clone())
+                } else {
+                    let mut builder = HttpResponse::Ok();
+                    builder.insert_header(CacheControl(vec![CacheDirective::MaxAge(45u32), CacheDirective::MinFresh(30u32)]));
+                    builder.json(peers)
+                }
+            },
+            Err(e) => {
+                eprintln!("Error getting peers: {}", e);
+                HttpResponse::InternalServerError().finish()
+            }
         }
+    } else {
+        let mut builder = HttpResponse::Ok();
+        builder.insert_header(CacheControl(vec![CacheDirective::MaxAge(45u32), CacheDirective::MinFresh(30u32)]));
+        builder.json(data.data.lock().await.clone())
     }
 }
 
@@ -70,7 +89,7 @@ async fn last_update(client: &Data<Mutex<redis::aio::Connection>>) -> Result<Ser
     }
 }
 
-async fn get_peers(network: CKBNetworkType, offline_min: u64, unknown_offline_min: u64, client: &Data<Mutex<redis::aio::Connection>>) -> Result<Vec<Peer>, redis::RedisError> {
+async fn get_peers(network: CKBNetworkType, offline_min: u64, unknown_offline_min: u64, client: &Mutex<redis::aio::Connection>) -> Result<Vec<Peer>, redis::RedisError> {
     let mut client = client.lock().await;
     let keys: Vec<String> = match network {
         CKBNetworkType::Mirana => {
@@ -174,9 +193,7 @@ async fn main() -> std::io::Result<()> {
     // redis context
     let redis_client = redis::Client::open(redis_url).expect("Error redis url!");
     let con = redis_client.get_tokio_connection().await.expect("Can not get redis context!");
-
     let client = Data::new(Mutex::new(con));
-
     // Start the HTTP server
     let app = HttpServer::new(move || {
         let cors = Cors::default()
@@ -187,7 +204,15 @@ async fn main() -> std::io::Result<()> {
             .max_age(3600);
         App::new()
             .wrap(cors)
-            .app_data(Data::clone(&client))
+            .app_data(
+                Data::new(
+                    ServiceData {
+                        client: client.clone(),
+                        last_cache_update: Mutex::new(SystemTime::UNIX_EPOCH),
+                        data: Mutex::new(Default::default()),
+                    }
+                )
+            )
             .route("/peer", web::get().to(peer_handler))
             .route("/", web::get().to(peer_handler))
             .route("/health", web::get().to(last_update_handler))
