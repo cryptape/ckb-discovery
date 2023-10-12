@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::time::SystemTime;
 // Define a struct to represent a peer with country and city information
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Peer {
     pub(crate) id: i32,
     //pub(crate) ip: String,
