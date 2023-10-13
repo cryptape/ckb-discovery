@@ -60,7 +60,8 @@ async fn peer_handler(
     }
 }
 
-async fn last_update_handler(client: Data<Mutex<redis::aio::Connection>>) -> impl Responder {
+async fn last_update_handler(data: Data<ServiceData>) -> impl Responder {
+    let client = &data.client;
     match last_update(&client).await {
         Ok(status) => HttpResponse::Ok().json(status),
         Err(e) => {
