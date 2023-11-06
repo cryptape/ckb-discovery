@@ -200,6 +200,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             }
                         }
                     },
+                    "peer/online2" => {
+                        if let Ok(msg) = serde_json::from_slice::<PeerInfo>(msg.payload()) {
+                            info!("Received Online peer, {:?}", msg);
+                            if let Err(error) = online_tx.send(msg).await {
+                                error!("Failed to send peer to online_tx, error: {:?}", error);
+                            }
+                        } else {
+                            error!("Not a valid online PeerInfo!");
+                        }
+                    },
                     "peer/reachable" => {
                         if let Ok(msg) = serde_json::from_slice::<ReachableInfo>(msg.payload()) {
                             info!("Received Reachable peer, {:?}", msg);
@@ -210,7 +220,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     },
                     "peer/unknown" => {
                         if let Ok(msg) = serde_json::from_slice::<NodeMetaInfo>(msg.payload()) {
-                            info!("Received Unknown peer, {:?}", msg);
+                            //info!("Received Unknown peer, {:?}", msg);
                             if let Err(error) = unknown_tx.send(msg).await {
                                 error!("Failed to send peer to unknown_tx, error: {:?}", error);
                             }

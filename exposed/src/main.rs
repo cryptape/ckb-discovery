@@ -1,12 +1,14 @@
 mod model;
 
+use std::fmt::format;
 use std::str::FromStr;
 use std::time::{SystemTime, UNIX_EPOCH};
 use actix_cors::Cors;
 use actix_web::web::Data;
-use actix_web::{http, web, App, HttpResponse, HttpServer, Responder};
+use actix_web::{http, web, App, HttpResponse, HttpServer, Responder, HttpRequest, Error, HttpResponseBuilder, HttpMessage};
 use std::time::Duration;
 use actix_web::http::header::{CacheControl, CacheDirective};
+use actix_web::http::StatusCode;
 use chrono::{Utc, DateTime};
 use redis::{AsyncCommands, Commands};
 use regex::Regex;
@@ -165,6 +167,14 @@ async fn get_peers(network: CKBNetworkType, offline_min: u64, unknown_offline_mi
     Ok(peers)
 }
 
+async fn add_node(node_id: String ,req: HttpRequest) -> impl Responder {
+    if let Some(addr) = req.peer_addr() {
+        HttpResponse::Ok().body(format!("node_id: {}, addr: {:?}", node_id, addr.ip().to_string()))
+    } else {
+        HttpResponse::NotAcceptable().json(format!("{{node_id: {}}}", node_id))
+    }
+}
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     let matches = clap::App::new("Marci")
@@ -217,6 +227,7 @@ async fn main() -> std::io::Result<()> {
             .route("/peer", web::get().to(peer_handler))
             .route("/", web::get().to(peer_handler))
             .route("/health", web::get().to(last_update_handler))
+            .route("/add_node", web::post().to(add_node))
     })
         .bind(bind)?;
 

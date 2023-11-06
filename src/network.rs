@@ -7,6 +7,7 @@ use ckb_discovery_types::{CKBNetworkType, EndpointInfo, NodeMetaInfo};
 pub fn get_bootnodes(network: CKBNetworkType) -> Vec<Multiaddr> {
     let bootnodes = match network {
         CKBNetworkType::Mirana => [
+            "/ip4/52.33.75.45/tcp/8124/p2p/QmPHzhEzekyjB14eQsnsVRxmymtYmAyntcfJgVYRiUq4Lb",
             "/ip4/47.110.15.57/tcp/8114/p2p/QmXS4Kbc9HEeykHUTJCm2tNmqghbvWyYpUp6BtE5b6VrAU",
             "/ip4/13.234.144.148/tcp/8114/p2p/QmbT7QimcrcD5k2znoJiWpxoESxang6z1Gy9wof1rT1LKR",
             "/ip4/104.208.105.55/tcp/8114/p2p/QmejugEABNzAofqRhci7HAipLFvoyYKRacd272jNtnQBTE",
