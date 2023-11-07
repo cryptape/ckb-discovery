@@ -133,7 +133,7 @@ async fn get_peers(network: CKBNetworkType, offline_min: u64, unknown_offline_mi
                     .unwrap()[1]
                     .to_owned()
             } else {
-                version
+                version.clone()
             }
         };
 
