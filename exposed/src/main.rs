@@ -128,10 +128,13 @@ async fn get_peers(network: CKBNetworkType, offline_min: u64, unknown_offline_mi
             "Unknown".to_string()
         } else {
             if let Ok(regex) = Regex::new(r"^(.*?)[^0-9.].*$") {
-                regex
-                    .captures(&version.clone())
-                    .unwrap()[1]
-                    .to_owned()
+                if let Some(captures) = regex
+                    .captures(&version.clone()) {
+                    captures.unwrap_or_default()[1]
+                        .to_owned()
+                } else {
+                    version.clone()
+                }
             } else {
                 version.clone()
             }
