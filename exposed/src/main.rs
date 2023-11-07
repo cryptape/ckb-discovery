@@ -127,11 +127,14 @@ async fn get_peers(network: CKBNetworkType, offline_min: u64, unknown_offline_mi
         let version_short = if !online_peers.contains(&peer_id) {
             "Unknown".to_string()
         } else {
-            Regex::new(r"^(.*?)[^0-9.].*$")
-                .unwrap()
-                .captures(&version.clone())
-                .unwrap()[1]
-                .to_owned()
+            if let Ok(regex) = Regex::new(r"^(.*?)[^0-9.].*$") {
+                regex
+                    .captures(&version.clone())
+                    .unwrap()[1]
+                    .to_owned()
+            } else {
+                version
+            }
         };
 
         let country: Option<String> = client.get(format!("peer_info.{}.country", peer_id)).await.unwrap_or_default();
