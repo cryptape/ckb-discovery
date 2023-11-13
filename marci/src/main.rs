@@ -23,6 +23,10 @@ macro_rules! online_peer_key_format {
     () => ("peer.online.{}")
 }
 
+macro_rules! online2_peer_key_format {
+    () => ("peer.online2.{}")
+}
+
 macro_rules! reachable_peer_key_format {
     () => ("peer.reachable.{}")
 }
@@ -187,7 +191,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let redis_client = redis::Client::open(redis_url)?;
     let mut con = redis_client.get_tokio_connection().await?;
 
-
     //mqtt context
     let mqtt_tx = tokio::spawn(async move {
         while let Some(msg_opt) = mqtt_con.next().await {
@@ -247,10 +250,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             Some(msg) = online_rx.recv() => {
                 let peer: PeerInfo = msg;
                 let online_key = format!(online_peer_key_format!(), peer.info.peer_id);
+                let online2_key = format!(online2_peer_key_format!(), peer.info.peer_id);
                 let unknown_key = format!(unknown_peer_key_format!(), peer.info.peer_id);
                 let last_seen_key = format!(peer_seen_key_format!(), peer.info.peer_id);
                 if peer.is_ex {
                     con.set_ex(online_key.clone(), peer.version, ckb_node_ex_timeout).await?;
+                    con.set_ex(online2_key.clone(), peer.version, ckb_node_ex_timeout).await?;
                 } else {
                     con.set_ex(online_key.clone(), peer.version, ckb_node_default_timeout).await?;
                 }
