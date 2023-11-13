@@ -133,6 +133,7 @@ pub async fn query_by_reachable(reachable: &ReachableInfo) -> Option<IpDetails> 
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     env::set_var("RUST_LOG", "info");
     let ckb_node_default_timeout = env::var("CKB_NODE_DEFAULT_TIMEOUT").unwrap_or("5184000".to_string()).parse::<usize>()?;
+    let ckb_node_ex_timeout = env::var("CKB_NODE_EX_DEFAULT_TIMEOUT").unwrap_or("7200".to_string()).parse::<usize>()?;
     let ckb_node_unknown_default_timeout = env::var("CKB_NODE_UNKNOWN_DEFAULT_TIMEOUT").unwrap_or("1209600".to_string()).parse::<usize>()?;
     let ckb_node_default_witnesses = env::var("CKB_NODE_DEFAULT_WITNESSES").unwrap_or("3".to_string()).parse::<usize>()?;
 
@@ -172,8 +173,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let sub_context = mqtt_client.clone().to_owned();
     let pub_context = mqtt_client.clone().to_owned();
 
-    let topics = vec!["peer/online", "peer/reachable", "peer/unknown"];
-    let qos = vec![mqtt::QOS_1,mqtt::QOS_1,mqtt::QOS_1];
+    let topics = vec!["peer/online", "peer/reachable", "peer/unknown", "peer/online2"];
+    let qos = vec![mqtt::QOS_1,mqtt::QOS_1,mqtt::QOS_1,mqtt::QOS_1];
 
     let sub_opts = vec![mqtt::SubscribeOptions::with_retain_as_published(); topics.len()];
 
@@ -206,8 +207,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             if let Err(error) = online_tx.send(msg).await {
                                 error!("Failed to send peer to online_tx, error: {:?}", error);
                             }
-                        } else {
-                            error!("Not a valid online PeerInfo!");
                         }
                     },
                     "peer/reachable" => {
@@ -216,6 +215,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             if let Err(error) = reachable_tx.send(msg).await {
                                 error!("Failed to send peer to reachable_tx, error: {:?}", error);
                             }
+                        } else {
+                            error!("Not a valid reachable!");
                         }
                     },
                     "peer/unknown" => {
@@ -248,7 +249,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let online_key = format!(online_peer_key_format!(), peer.info.peer_id);
                 let unknown_key = format!(unknown_peer_key_format!(), peer.info.peer_id);
                 let last_seen_key = format!(peer_seen_key_format!(), peer.info.peer_id);
-                con.set_ex(online_key.clone(), peer.version, ckb_node_default_timeout).await?;
+                if peer.is_ex {
+                    con.set_ex(online_key.clone(), peer.version, ckb_node_ex_timeout).await?;
+                } else {
+                    con.set_ex(online_key.clone(), peer.version, ckb_node_default_timeout).await?;
+                }
                 con.set(last_seen_key, SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs()).await?;
                 con.del(unknown_key).await?;
             },
@@ -267,7 +272,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     debug!("Witnesses of {} is {}", peer.peer_id, witnesses);
                     if witnesses >= ckb_node_default_witnesses {
                         info!("unknown peer {} upgraded into online since witnesses = {}", peer.peer_id, witnesses);
-                        con.set_ex(unknown_key, "unknown", ckb_node_default_timeout).await?;
+                        con.set_ex(unknown_key, "unknown", ckb_node_unknown_default_timeout).await?;
                         con.del(reachable_key).await?;
                     }
                 }

@@ -73,6 +73,8 @@ pub struct PeerInfo {
     pub version: String,
     #[serde(default)]
     pub full: bool,
+    #[serde(default)]
+    pub is_ex: bool,
 }
 
 impl PeerInfo {
