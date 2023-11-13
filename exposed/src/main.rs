@@ -13,7 +13,7 @@ use chrono::{Utc, DateTime};
 use redis::{AsyncCommands, Commands};
 use regex::Regex;
 use tokio::sync::Mutex;
-use crate::model::{Peer, QueryParams, ServiceStatus};
+use crate::model::{Peer, PeerQueryParams, PeerStatus, QueryParams, ServiceStatus};
 use clap::Arg;
 use ckb_discovery_types::CKBNetworkType;
 
@@ -21,6 +21,23 @@ struct ServiceData {
     client: Data<Mutex<redis::aio::Connection>>,
     last_cache_update: Mutex<SystemTime>,
     data: Mutex<Vec<Peer>>,
+}
+
+async fn peer_in_map(
+    query_params: web::Query<PeerQueryParams>,
+    mut data: Data<ServiceData>,
+) -> impl Responder {
+    let client = &data.client;
+    let mut client = client.lock().await;
+    let peer_id = query_params.peer_id.clone();
+    let online_keys: Vec<String> =  client.keys(format!("peer.online.{}", peer_id)).await.unwrap_or_default();
+    let unknown_keys: Vec<String> = client.keys(format!("peer.unknown.{}", peer_id)).await.unwrap_or_default();
+    let mut builder = HttpResponse::Ok();
+    let in_map = !(online_keys.is_empty() && unknown_keys.is_empty());
+    builder.json(PeerStatus{
+        peer_id,
+        in_map,
+    })
 }
 
 // Define a handler function for the "/peer" endpoint
@@ -232,6 +249,7 @@ async fn main() -> std::io::Result<()> {
             .route("/", web::get().to(peer_handler))
             .route("/health", web::get().to(last_update_handler))
             .route("/add_node", web::post().to(add_node))
+            .route("/peer_status", web::get().to(peer_in_map))
     })
         .bind(bind)?;
 

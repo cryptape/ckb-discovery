@@ -32,6 +32,17 @@ pub struct QueryParams {
     pub(crate) unknown_offline_timeout: u64,
 }
 
+#[derive(Deserialize, Default)]
+pub struct PeerQueryParams {
+    pub(crate) peer_id: String,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct PeerStatus {
+    pub(crate) peer_id: String,
+    pub(crate) in_map: bool
+}
+
 fn default_network() -> String {
     "mirana".to_string()
 }
