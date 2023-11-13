@@ -254,10 +254,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let unknown_key = format!(unknown_peer_key_format!(), peer.info.peer_id);
                 let last_seen_key = format!(peer_seen_key_format!(), peer.info.peer_id);
                 if peer.is_ex {
-                    con.set_ex(online_key.clone(), peer.version, ckb_node_ex_timeout).await?;
+                    con.set_ex(online_key.clone(), peer.version.clone(), ckb_node_ex_timeout).await?;
                     con.set_ex(online2_key.clone(), peer.version, ckb_node_ex_timeout).await?;
                 } else {
-                    con.set_ex(online_key.clone(), peer.version, ckb_node_default_timeout).await?;
+                    con.set_ex(online_key.clone(), peer.version.clone(), ckb_node_default_timeout).await?;
                 }
                 con.set(last_seen_key, SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs()).await?;
                 con.del(unknown_key).await?;
