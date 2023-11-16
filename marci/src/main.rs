@@ -141,6 +141,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let ckb_node_unknown_default_timeout = env::var("CKB_NODE_UNKNOWN_DEFAULT_TIMEOUT").unwrap_or("1209600".to_string()).parse::<usize>()?;
     let ckb_node_default_witnesses = env::var("CKB_NODE_DEFAULT_WITNESSES").unwrap_or("3".to_string()).parse::<usize>()?;
 
+    let marci_broadcast_interval = env::var("MERCI_DEFAULT_INTERVAL").unwrap_or("180".to_string()).parse::<usize>()?;
+
     env_logger::init();
     let (online_tx, mut online_rx) = tokio::sync::mpsc::channel::<PeerInfo>(100);
     let (reachable_tx, mut reachable_rx) = tokio::sync::mpsc::channel::<ReachableInfo>(500);
@@ -161,7 +163,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let conn_opts = mqtt::ConnectOptionsBuilder::new()
         .clean_start(true)
-        .keep_alive_interval(Duration::from_millis(300))
+        .keep_alive_interval(Duration::from_millis(100))
         .automatic_reconnect(Duration::from_millis(500), Duration::from_millis(2000))
         .user_name(mqtt_user)
         .password(mqtt_pass)
@@ -241,7 +243,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Ok::<(), mqtt::Error>(())
     });
 
-    let reachable_broadcast_interval = tokio::time::sleep(Duration::from_secs(30));
+    let reachable_broadcast_interval = tokio::time::sleep(Duration::from_secs(marci_broadcast_interval as u64));
     tokio::pin!(reachable_broadcast_interval);
 
 
