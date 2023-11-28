@@ -141,7 +141,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let ckb_node_unknown_default_timeout = env::var("CKB_NODE_UNKNOWN_DEFAULT_TIMEOUT").unwrap_or("1209600".to_string()).parse::<usize>()?;
     let ckb_node_default_witnesses = env::var("CKB_NODE_DEFAULT_WITNESSES").unwrap_or("3".to_string()).parse::<usize>()?;
 
-    let marci_broadcast_interval = env::var("MERCI_DEFAULT_INTERVAL").unwrap_or("180".to_string()).parse::<usize>()?;
+    let marci_broadcast_interval = env::var("MERCI_DEFAULT_INTERVAL").unwrap_or("180".to_string()).parse::<u64>()?;
 
     env_logger::init();
     let (online_tx, mut online_rx) = tokio::sync::mpsc::channel::<PeerInfo>(100);
@@ -243,7 +243,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Ok::<(), mqtt::Error>(())
     });
 
-    let reachable_broadcast_interval = tokio::time::sleep(Duration::from_secs(marci_broadcast_interval as u64));
+    let reachable_broadcast_interval = tokio::time::sleep(Duration::from_secs(marci_broadcast_interval));
     tokio::pin!(reachable_broadcast_interval);
 
 
@@ -257,7 +257,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let last_seen_key = format!(peer_seen_key_format!(), peer.info.peer_id);
                 if peer.is_ex {
                     con.set_ex(online_key.clone(), peer.version.clone(), ckb_node_ex_timeout).await?;
-                    con.set_ex(online2_key.clone(), peer.version, ckb_node_ex_timeout).await?;
+                    con.set_ex(online2_key.clone(), peer.version, ckb_node_default_timeout).await?;
                 } else {
                     con.set_ex(online_key.clone(), peer.version.clone(), ckb_node_default_timeout).await?;
                 }
@@ -347,7 +347,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     pub_context.publish(mqtt::Message::new("peer/needs_dial", serde_json::to_string(&meta_info).unwrap_or_default(), mqtt::QOS_1)).await?;
                 }
                 info!("Requested {} reachable peers", peers_reachable.len());
-                reachable_broadcast_interval.as_mut().reset(Instant::now() + Duration::from_secs(30));
+                reachable_broadcast_interval.as_mut().reset(Instant::now() + Duration::from_secs(marci_broadcast_interval));
 
                 // Update Service Info
                 con.set::<String, u64, u64>("service.last_update".to_string(), SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs()).await.unwrap_or_default();

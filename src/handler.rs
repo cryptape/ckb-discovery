@@ -111,6 +111,7 @@ impl Handler {
                         info: addr_to_node_meta(&context.session.address, self.network_type),
                         version: client_version,
                         full,
+                        is_ex: false,
                     };
                     let mqtt_context = self.mqtt_context.clone().to_owned();
 
