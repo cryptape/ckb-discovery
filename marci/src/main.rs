@@ -137,7 +137,7 @@ pub async fn query_by_reachable(reachable: &ReachableInfo) -> Option<IpDetails> 
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     env::set_var("RUST_LOG", "info");
     let ckb_node_default_timeout = env::var("CKB_NODE_DEFAULT_TIMEOUT").unwrap_or("5184000".to_string()).parse::<usize>()?;
-    let ckb_node_ex_timeout = env::var("CKB_NODE_EX_DEFAULT_TIMEOUT").unwrap_or("7200".to_string()).parse::<usize>()?;
+    let ckb_node_ex_timeout = env::var("CKB_NODE_EX_DEFAULT_TIMEOUT").unwrap_or("129600".to_string()).parse::<usize>()?;
     let ckb_node_unknown_default_timeout = env::var("CKB_NODE_UNKNOWN_DEFAULT_TIMEOUT").unwrap_or("1209600".to_string()).parse::<usize>()?;
     let ckb_node_default_witnesses = env::var("CKB_NODE_DEFAULT_WITNESSES").unwrap_or("3".to_string()).parse::<usize>()?;
 
