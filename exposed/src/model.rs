@@ -21,7 +21,6 @@ pub struct ServiceStatus {
     pub(crate) last_update: u64,
 }
 
-
 #[derive(Deserialize, Default)]
 pub struct QueryParams {
     #[serde(default = "default_network")]
@@ -40,7 +39,7 @@ pub struct PeerQueryParams {
 #[derive(Serialize, Deserialize)]
 pub struct PeerStatus {
     pub(crate) peer_id: String,
-    pub(crate) in_map: bool
+    pub(crate) in_map: bool,
 }
 
 fn default_network() -> String {

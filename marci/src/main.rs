@@ -1,147 +1,193 @@
 extern crate core;
 
-use paho_mqtt as mqtt;
-use std::time::UNIX_EPOCH;
-use redis::{AsyncCommands, Commands};
-use tokio::time::{Duration, Instant, interval};
 use ckb_discovery_types::{CKBNetworkType, EndpointInfo, NodeMetaInfo, PeerInfo, ReachableInfo};
-use log::{debug, error, info, log, warn};
-use std::{env};
-use std::time::SystemTime;
-use ipinfo::{IpDetails, IpError, IpInfo};
-use lazy_static::lazy_static;
-use std::sync::Mutex;
-use std::collections::HashMap;
 use futures::StreamExt;
+use ipinfo::{IpDetails, IpError, IpInfo};
+use log::{debug, error, info, warn};
+use paho_mqtt as mqtt;
+use redis::AsyncCommands;
+use std::collections::HashMap;
+use std::env;
+use std::sync::OnceLock;
+use std::time::SystemTime;
+use std::time::UNIX_EPOCH;
+use tokio::time::Duration;
 
-
-async fn check_peer_online(con: &mut redis::aio::Connection, peer_id: String) -> bool {
-    con.keys::<&String, Vec<String>>(&peer_id).await.unwrap_or_default().contains(&peer_id)
+async fn _check_peer_online(con: &mut redis::aio::Connection, peer_id: String) -> bool {
+    con.keys::<&String, Vec<String>>(&peer_id)
+        .await
+        .unwrap_or_default()
+        .contains(&peer_id)
 }
 
 macro_rules! online_peer_key_format {
-    () => ("peer.online.{}")
+    () => {
+        "peer.online.{}"
+    };
 }
 
 macro_rules! online2_peer_key_format {
-    () => ("peer.online2.{}")
+    // ex online
+    () => {
+        "peer.online2.{}"
+    };
 }
 
 macro_rules! reachable_peer_key_format {
-    () => ("peer.reachable.{}")
+    () => {
+        "peer.reachable.{}"
+    };
 }
 
 macro_rules! unknown_peer_key_format {
-    () => ("peer.unknown.{}")
+    () => {
+        "peer.unknown.{}"
+    };
 }
 
 macro_rules! peer_seen_key_format {
-    () => ("peer_info.{}.last_seen")
+    () => {
+        "peer_info.{}.last_seen"
+    };
 }
 
 macro_rules! peer_ip_key_format {
-    () => ("peer_info.{}.ip")
+    () => {
+        "peer_info.{}.ip"
+    };
 }
 
-macro_rules! peer_version_key_format {
-    () => ("peer_info.{}.version")
+macro_rules! _peer_version_key_format {
+    () => {
+        "peer_info.{}.version"
+    };
 }
 
 macro_rules! peer_country_key_format {
-    () => ("peer_info.{}.country")
+    () => {
+        "peer_info.{}.country"
+    };
 }
 
 macro_rules! peer_city_key_format {
-    () => ("peer_info.{}.city")
+    () => {
+        "peer_info.{}.city"
+    };
 }
 
 macro_rules! peer_region_key_format {
-    () => ("peer_info.{}.region")
+    () => {
+        "peer_info.{}.region"
+    };
 }
-
 
 macro_rules! peer_pos_key_format {
-    () => ("peer_info.{}.pos")
+    () => {
+        "peer_info.{}.pos"
+    };
 }
 
-macro_rules! peer_witnesses_key_format {
-    () => ("peer_info.{}.witnesses")
+macro_rules! _peer_witnesses_key_format {
+    () => {
+        "peer_info.{}.witnesses"
+    };
 }
 
 macro_rules! peer_network_key_format {
-    () => ("peer_info.{}.network")
+    () => {
+        "peer_info.{}.network"
+    };
 }
 
 macro_rules! peer_network_quick_key_format {
-    () => ("network.peer.{}.{}")
+    () => {
+        "network.peer.{}.{}"
+    };
 }
 
-lazy_static! {
-    static ref IPINFO: Mutex<IpInfo> = {
-        let ipinfo_io_token = match ::std::env::var("IPINFO_IO_TOKEN") {
-            Ok(token) if !token.is_empty() => Some(token),
-            _ => {
-                log::warn!("Miss environment variable \"IPINFO_IO_TOKEN\", use empty value");
-                None
-            }
-        };
-        let ipinfo = ipinfo::IpInfo::new(ipinfo::IpInfoConfig {
-            token: ipinfo_io_token,
-            cache_size: 10000,
-            ..Default::default()
-        })
-        .expect("Connect to https://ipinfo.io");
-        Mutex::new(ipinfo)
-    };
-    static ref IPINFO_CACHE: Mutex<HashMap<String, IpDetails>> = Mutex::new(Default::default());
+fn ipinfo_cache() -> &'static mut HashMap<String, IpDetails> {
+    static mut IPINFO_CACHE: OnceLock<HashMap<String, IpDetails>> = OnceLock::new();
+
+    // Safety: only one thread can access here
+    unsafe {
+        IPINFO_CACHE.get_or_init(Default::default);
+        IPINFO_CACHE.get_mut().unwrap()
+    }
+}
+
+fn ipinfo() -> &'static mut IpInfo {
+    static mut IPINFO: OnceLock<IpInfo> = OnceLock::new();
+
+    // Safety: only one thread can access here
+    unsafe {
+        IPINFO.get_or_init(|| {
+            let ipinfo_io_token = match ::std::env::var("IPINFO_IO_TOKEN") {
+                Ok(token) if !token.is_empty() => Some(token),
+                _ => {
+                    log::warn!("Miss environment variable \"IPINFO_IO_TOKEN\", use empty value");
+                    None
+                }
+            };
+            ipinfo::IpInfo::new(ipinfo::IpInfoConfig {
+                token: ipinfo_io_token,
+                cache_size: 10000,
+                ..Default::default()
+            })
+            .expect("Connect to https://ipinfo.io")
+        });
+        IPINFO.get_mut().unwrap()
+    }
 }
 
 pub async fn lookup_ipinfo(ip: &str) -> Result<IpDetails, IpError> {
-    if let Ok(cache) = IPINFO_CACHE.lock() {
-        if let Some(ipdetails) = cache.get(&ip.to_string()) {
-            return Ok(ipdetails.clone());
-        }
+    let global_ipinfo_cache = ipinfo_cache();
+
+    if let Some(ipdetails) = global_ipinfo_cache.get(&ip.to_string()) {
+        return Ok(ipdetails.clone());
     }
 
-    if let Ok(mut ipinfo) = IPINFO.lock() {
-        let lookup_info = ipinfo.lookup(&ip).await;
-        match lookup_info {
-            Ok(ipdetails) => {
-                if let Ok(mut cache) = IPINFO_CACHE.lock() {
-                    cache.insert(ip.to_string(), ipdetails.to_owned());
-                }
+    let lookup_info = ipinfo().lookup(ip).await;
+    match lookup_info {
+        Ok(ipdetails) => {
+            global_ipinfo_cache.insert(ip.to_string(), ipdetails.to_owned());
 
-                return Ok(ipdetails.to_owned());
-            }
-            Err(err) => {
-                warn!("IPINFO.lookup(\"{}\"), error: {}", ip, err);
-                return Err(err)
-            },
+            Ok(ipdetails.to_owned())
+        }
+        Err(err) => {
+            warn!("IPINFO.lookup(\"{}\"), error: {}", ip, err);
+            Err(err)
         }
     }
-
-    unreachable!()
 }
 
 pub async fn query_by_reachable(reachable: &ReachableInfo) -> Option<IpDetails> {
     for addr in reachable.peer.addresses.iter() {
         if let Ok(res) = lookup_ipinfo(addr.address.to_string().as_str()).await {
-            return Some(res)
+            return Some(res);
         }
     }
     None
 }
 
-
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     env::set_var("RUST_LOG", "info");
-    let ckb_node_default_timeout = env::var("CKB_NODE_DEFAULT_TIMEOUT").unwrap_or("5184000".to_string()).parse::<usize>()?;
-    let ckb_node_ex_timeout = env::var("CKB_NODE_EX_DEFAULT_TIMEOUT").unwrap_or("86400".to_string()).parse::<usize>()?;
-    let ckb_node_unknown_default_timeout = env::var("CKB_NODE_UNKNOWN_DEFAULT_TIMEOUT").unwrap_or("1209600".to_string()).parse::<usize>()?;
-    let ckb_node_default_witnesses = env::var("CKB_NODE_DEFAULT_WITNESSES").unwrap_or("3".to_string()).parse::<usize>()?;
+    let ckb_node_default_timeout = env::var("CKB_NODE_DEFAULT_TIMEOUT")
+        .unwrap_or("5184000".to_string())
+        .parse::<usize>()?;
+    let ckb_node_ex_timeout = env::var("CKB_NODE_EX_DEFAULT_TIMEOUT")
+        .unwrap_or("86400".to_string())
+        .parse::<usize>()?;
+    let ckb_node_unknown_default_timeout = env::var("CKB_NODE_UNKNOWN_DEFAULT_TIMEOUT")
+        .unwrap_or("1209600".to_string())
+        .parse::<usize>()?;
+    let ckb_node_default_witnesses = env::var("CKB_NODE_DEFAULT_WITNESSES")
+        .unwrap_or("3".to_string())
+        .parse::<usize>()?;
 
-    let marci_broadcast_interval = env::var("MERCI_DEFAULT_INTERVAL").unwrap_or("180".to_string()).parse::<u64>()?;
+    let marci_broadcast_interval = env::var("MERCI_DEFAULT_INTERVAL")
+        .unwrap_or("180".to_string())
+        .parse::<u64>()?;
 
     env_logger::init();
     let (online_tx, mut online_rx) = tokio::sync::mpsc::channel::<PeerInfo>(100);
@@ -176,16 +222,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut mqtt_con = mqtt_client.get_stream(None);
 
-    let sub_context = mqtt_client.clone().to_owned();
     let pub_context = mqtt_client.clone().to_owned();
 
-    let topics = vec!["peer/online", "peer/reachable", "peer/unknown", "peer/online2"];
-    let qos = vec![mqtt::QOS_1,mqtt::QOS_1,mqtt::QOS_1,mqtt::QOS_1];
+    let topics = vec![
+        "peer/online",
+        "peer/reachable",
+        "peer/unknown",
+        "peer/online2",
+    ];
+    let qos = vec![mqtt::QOS_1, mqtt::QOS_1, mqtt::QOS_1, mqtt::QOS_1];
 
     let sub_opts = vec![mqtt::SubscribeOptions::with_retain_as_published(); topics.len()];
 
-    mqtt_client.subscribe_many_with_options(&topics, &qos, &sub_opts, None).await?;
-
+    mqtt_client
+        .subscribe_many_with_options(&topics, &qos, &sub_opts, None)
+        .await?;
 
     let redis_url = env::var("REDIS_URL").unwrap_or("redis://:CkBdIsCoVeRy@redis".to_string());
 
@@ -194,7 +245,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut con = redis_client.get_tokio_connection().await?;
 
     //mqtt context
-    let mqtt_tx = tokio::spawn(async move {
+    tokio::spawn(async move {
         while let Some(msg_opt) = mqtt_con.next().await {
             if let Some(msg) = msg_opt {
                 match msg.topic() {
@@ -205,7 +256,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 error!("Failed to send peer to online_tx, error: {:?}", error);
                             }
                         }
-                    },
+                    }
                     "peer/online2" => {
                         if let Ok(msg) = serde_json::from_slice::<PeerInfo>(msg.payload()) {
                             info!("Received Online peer, {:?}", msg);
@@ -213,7 +264,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 error!("Failed to send peer to online_tx, error: {:?}", error);
                             }
                         }
-                    },
+                    }
                     "peer/reachable" => {
                         if let Ok(msg) = serde_json::from_slice::<ReachableInfo>(msg.payload()) {
                             info!("Received Reachable peer, {:?}", msg);
@@ -223,7 +274,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         } else {
                             error!("Not a valid reachable!");
                         }
-                    },
+                    }
                     "peer/unknown" => {
                         if let Ok(msg) = serde_json::from_slice::<NodeMetaInfo>(msg.payload()) {
                             //info!("Received Unknown peer, {:?}", msg);
@@ -231,9 +282,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 error!("Failed to send peer to unknown_tx, error: {:?}", error);
                             }
                         }
-                    },
-                    _ => { // other channel
-                    info!("Got message from: {}, ignored", msg.topic());
+                    }
+                    _ => {
+                        // other channel
+                        info!("Got message from: {}, ignored", msg.topic());
                     }
                 }
             } else {
@@ -243,9 +295,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Ok::<(), mqtt::Error>(())
     });
 
-    let reachable_broadcast_interval = tokio::time::sleep(Duration::from_secs(marci_broadcast_interval));
-    tokio::pin!(reachable_broadcast_interval);
-
+    let mut reachable_broadcast_interval =
+        tokio::time::interval(Duration::from_secs(marci_broadcast_interval));
+    reachable_broadcast_interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
 
     loop {
         tokio::select! {
@@ -316,7 +368,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             },
 
             // Different timers
-            () = &mut reachable_broadcast_interval => {
+            _ = reachable_broadcast_interval.tick() => {
                 let reachable_peer_keys_vec: Vec<String> = con.keys("peer.reachable.*").await?;
                 if reachable_peer_keys_vec.is_empty() {
                     debug!("No reachable peer needs to call");
@@ -347,13 +399,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     pub_context.publish(mqtt::Message::new("peer/needs_dial", serde_json::to_string(&meta_info).unwrap_or_default(), mqtt::QOS_1)).await?;
                 }
                 info!("Requested {} reachable peers", peers_reachable.len());
-                reachable_broadcast_interval.as_mut().reset(Instant::now() + Duration::from_secs(marci_broadcast_interval));
 
                 // Update Service Info
                 con.set::<String, u64, u64>("service.last_update".to_string(), SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs()).await.unwrap_or_default();
             },
         }
     }
-
-    warn!("exiting...");
 }

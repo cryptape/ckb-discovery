@@ -1501,7 +1501,6 @@ dependencies = [
  "env_logger",
  "futures",
  "ipinfo",
- "lazy_static",
  "log",
  "paho-mqtt",
  "redis",
