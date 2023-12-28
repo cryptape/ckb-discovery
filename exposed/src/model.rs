@@ -21,7 +21,6 @@ pub struct ServiceStatus {
     pub(crate) last_update: u64,
 }
 
-
 #[derive(Deserialize, Default)]
 pub struct QueryParams {
     #[serde(default = "default_network")]
@@ -30,6 +29,17 @@ pub struct QueryParams {
     pub(crate) offline_timeout: u64,
     #[serde(default = "default_unknown_timeout")]
     pub(crate) unknown_offline_timeout: u64,
+}
+
+#[derive(Deserialize, Default)]
+pub struct PeerQueryParams {
+    pub(crate) peer_id: String,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct PeerStatus {
+    pub(crate) peer_id: String,
+    pub(crate) in_map: bool,
 }
 
 fn default_network() -> String {

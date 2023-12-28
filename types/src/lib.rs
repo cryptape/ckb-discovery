@@ -1,19 +1,19 @@
+use serde::{Deserialize, Serialize};
 use std::net::IpAddr;
-use serde::{Serialize, Deserialize};
 
 #[derive(Copy, Clone, Debug, Serialize, Deserialize)]
 pub enum CKBNetworkType {
     Mirana,
     Pudge,
-    Dev
+    Dev,
 }
 
 impl From<String> for CKBNetworkType {
     fn from(s: String) -> Self {
         match s.as_str() {
-            "mirana"|"ckb"|"main" => CKBNetworkType::Mirana,
-            "pudge"|"ckb_testnet"|"test" => CKBNetworkType::Pudge,
-            "dev"|"ckb_dev" => CKBNetworkType::Dev,
+            "mirana" | "ckb" | "main" => CKBNetworkType::Mirana,
+            "pudge" | "ckb_testnet" | "test" => CKBNetworkType::Pudge,
+            "dev" | "ckb_dev" => CKBNetworkType::Dev,
             _ => CKBNetworkType::Mirana,
         }
     }
@@ -43,7 +43,7 @@ pub struct EndpointInfo {
     pub port: u16,
 }
 
-#[derive(Serialize, Deserialize, Clone,  Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct ReachableInfo {
     pub peer: NodeMetaInfo,
     pub from: NodeMetaInfo,
@@ -51,10 +51,7 @@ pub struct ReachableInfo {
 
 impl ReachableInfo {
     pub fn new(peer: NodeMetaInfo, from: NodeMetaInfo) -> Self {
-        ReachableInfo {
-            peer,
-            from,
-        }
+        ReachableInfo { peer, from }
     }
 }
 
@@ -65,7 +62,6 @@ pub struct NodeMetaInfo {
     pub network: CKBNetworkType,
 }
 
-
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct PeerInfo {
     pub info: NodeMetaInfo,
@@ -73,14 +69,12 @@ pub struct PeerInfo {
     pub version: String,
     #[serde(default)]
     pub full: bool,
+    #[serde(default)]
+    pub is_ex: bool,
 }
 
 impl PeerInfo {
-    pub fn to_string(&self) -> String {
-        serde_json::to_string(self).unwrap_or_default()
-    }
-
-    pub fn from_json(json_string: String) -> Result<Self, serde_json::error::Error>  {
+    pub fn from_json(json_string: String) -> Result<Self, serde_json::error::Error> {
         serde_json::from_str(json_string.as_str())
     }
 }

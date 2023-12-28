@@ -1,20 +1,17 @@
-use std::env;
+use ckb_discovery::handler::Handler;
+use ckb_discovery::network::meta_info_to_addr;
+use ckb_discovery_types::{CKBNetworkType, NodeMetaInfo};
+use futures::StreamExt;
+use log::{error, info};
+use nanoid::nanoid;
+use p2p::secio::SecioKeyPair;
+use p2p::service::TargetProtocol;
+use p2p::yamux::Config;
 use paho_mqtt as mqtt;
+use paho_mqtt::QOS_1;
+use std::env;
 use std::error::Error;
 use std::time::Duration;
-use futures::StreamExt;
-use ckb_discovery_types::{CKBNetworkType, NodeMetaInfo, PeerInfo};
-use log::{debug, error, info};
-use nanoid::nanoid;
-use p2p::multiaddr::{MultiAddr, Multiaddr};
-use p2p::secio::SecioKeyPair;
-use p2p::service::{TargetProtocol, TargetSession};
-use p2p::SessionId;
-use p2p::yamux::Config;
-use paho_mqtt::{QOS_1, QOS_2};
-use ckb_discovery::handler::Handler;
-use ckb_discovery::network::{meta_info_to_addr};
-
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
@@ -52,22 +49,19 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     mqtt_client.subscribe(topic, QOS_1).await?;
 
-
-
-    let builder_fn = |network: CKBNetworkType|{
+    let builder_fn = |network: CKBNetworkType| {
         let mqtt_ctx = mqtt_client.clone().to_owned();
         let mut service_builder = p2p::builder::ServiceBuilder::new();
-        let handler = Handler::new(network.clone(), mqtt_ctx);
+        let handler = Handler::new(network, mqtt_ctx);
 
         for meta in handler.build_protocol_metas() {
             service_builder = service_builder.insert_protocol(meta);
         }
         service_builder
             .forever(true)
-            .timeout(Duration::from_secs(15))
             .key_pair(SecioKeyPair::secp256k1_generated())
             .yamux_config(Config::default())
-            .set_recv_buffer_size( 24 * 1024 * 1024 )
+            .set_recv_buffer_size(24 * 1024 * 1024)
             .set_send_buffer_size(24 * 1024 * 1024)
             .timeout(Duration::from_secs(30))
             .build(handler)
@@ -75,7 +69,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let mut mirana_service = builder_fn(CKBNetworkType::Mirana);
     let mut pudge_service = builder_fn(CKBNetworkType::Pudge);
-
 
     let mirana_controller = mirana_service.control().to_owned();
     let pudge_controller = pudge_service.control().to_owned();
@@ -98,34 +91,37 @@ async fn main() -> Result<(), Box<dyn Error>> {
         while let Some(msg_opt) = mqtt_con.next().await {
             if let Some(msg) = msg_opt {
                 match msg.topic() {
-                    "peer/needs_dial" => { // received a dial signal
+                    "peer/needs_dial" => {
+                        // received a dial signal
                         match serde_json::from_slice::<NodeMetaInfo>(msg.payload()) {
                             Ok(node) => {
                                 info!("Start dial {:?}", node);
                                 let addrs = meta_info_to_addr(&node);
-                                for addr in addrs {
-                                    if let Ok(addr) = addr {
-                                        let res = match node.network {
-                                            CKBNetworkType::Pudge => {
-                                                pudge_controller.dial(addr.clone(), TargetProtocol::All).await
-                                            },
-                                            CKBNetworkType::Mirana => {
-                                                mirana_controller.dial(addr.clone(), TargetProtocol::All).await
-                                            },
-                                            _ => unreachable!(),
-                                        } ;
-                                        if res.is_err() {
-                                            error!("Failed to dial {:?}!", addr.to_string());
+                                for addr in addrs.into_iter().flatten() {
+                                    let res = match node.network {
+                                        CKBNetworkType::Pudge => {
+                                            pudge_controller
+                                                .dial(addr.clone(), TargetProtocol::All)
+                                                .await
                                         }
+                                        CKBNetworkType::Mirana => {
+                                            mirana_controller
+                                                .dial(addr.clone(), TargetProtocol::All)
+                                                .await
+                                        }
+                                        _ => unreachable!(),
+                                    };
+                                    if res.is_err() {
+                                        error!("Failed to dial {:?}!", addr.to_string());
                                     }
                                 }
-                            },
-                            Err(error) => {
+                            }
+                            Err(_) => {
                                 error!("{:?} not a valid multiaddr", msg.payload());
                             }
                         }
-                    },
-                    _ => {  // other channel
+                    }
+                    _ => { // other channel
                     }
                 }
             } else {
