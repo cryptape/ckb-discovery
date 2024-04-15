@@ -2,7 +2,7 @@ use ckb_discovery::handler::Handler;
 use ckb_discovery::network::meta_info_to_addr;
 use ckb_discovery_types::{CKBNetworkType, NodeMetaInfo};
 use futures::StreamExt;
-use log::{error, info};
+use log::{error, info, warn};
 use nanoid::nanoid;
 use p2p::secio::SecioKeyPair;
 use p2p::service::TargetProtocol;
@@ -41,7 +41,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     mqtt_client.connect(conn_opts).await?;
 
-    println!("Connected to MQTT!");
+    info!("Connected to MQTT!");
 
     let mut mqtt_con = mqtt_client.get_stream(None);
 
@@ -125,7 +125,14 @@ async fn main() -> Result<(), Box<dyn Error>> {
                     }
                 }
             } else {
-                panic!("Lost connection! Attempting reconnect...");
+                warn!("Lost connection. Attempting reconnect...");
+                let mut rconn_attempt: usize = 0;
+                while let Err(err) = mqtt_client.reconnect().await {
+                    rconn_attempt += 1;
+                    info!("Error reconnecting #{}: {}", rconn_attempt, err);
+                    tokio::time::sleep(Duration::from_secs(1)).await;
+                }
+                info!("Reconnected.");
             }
         }
         panic!("MQTT Context exited, Maybe service not ready...");

@@ -218,7 +218,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     mqtt_client.connect(conn_opts).await?;
 
-    println!("Connected to MQTT!");
+    info!("Connected to MQTT!");
 
     let mut mqtt_con = mqtt_client.get_stream(None);
 
@@ -289,7 +289,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 }
             } else {
-                panic!("Lost connection! Attempting reconnect...");
+                warn!("Lost connection. Attempting reconnect...");
+                let mut rconn_attempt: usize = 0;
+                while let Err(err) = mqtt_client.reconnect().await {
+                    rconn_attempt += 1;
+                    info!("Error reconnecting #{}: {}", rconn_attempt, err);
+                    tokio::time::sleep(Duration::from_secs(1)).await;
+                }
+                info!("Reconnected.");
             }
         }
         Ok::<(), mqtt::Error>(())
