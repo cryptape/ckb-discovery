@@ -1,7 +1,7 @@
 use p2p::builder::MetaBuilder;
-use p2p::ProtocolId;
 use p2p::service::{ProtocolHandle, ProtocolMeta};
 use p2p::traits::ServiceProtocol;
+use p2p::ProtocolId;
 use tokio_util::codec::length_delimited;
 
 #[derive(Clone, Debug)]
@@ -56,7 +56,7 @@ impl SupportProtocols {
             SupportProtocols::RelayV2 => 103,
             SupportProtocols::Alert => 110,
         }
-            .into()
+        .into()
     }
 
     /// Protocol name
@@ -73,25 +73,24 @@ impl SupportProtocols {
             SupportProtocols::Time => "/ckb/tim",
             SupportProtocols::Alert => "/ckb/alt",
         }
-            .to_owned()
+        .to_owned()
     }
 
     /// Support versions
     pub fn support_versions(&self) -> Vec<String> {
-        // we didn't invoke MetaBuilder#support_versions fn for these protocols (Ping/Discovery/Identify/Feeler/DisconnectMessage)
-        // in previous code, so the default 0.0.1 value is used ( https://github.com/nervosnetwork/tentacle/blob/master/src/builder.rs#L312 )
-        // have to keep 0.0.1 for compatibility...
         match self {
-            SupportProtocols::Ping => vec!["0.0.1".to_owned(), "2".to_owned()],
-            SupportProtocols::Discovery => vec!["0.0.1".to_owned(), "2".to_owned()],
-            SupportProtocols::Identify => vec!["0.0.1".to_owned(), "2".to_owned()],
-            SupportProtocols::Feeler => vec!["0.0.1".to_owned(), "2".to_owned()],
-            SupportProtocols::DisconnectMessage => vec!["0.0.1".to_owned(), "2".to_owned()],
-            SupportProtocols::Sync => vec!["1".to_owned(), "2".to_owned()],
-            SupportProtocols::Relay => vec!["1".to_owned()],
-            SupportProtocols::Time => vec!["1".to_owned(), "2".to_owned()],
-            SupportProtocols::Alert => vec!["1".to_owned(), "2".to_owned()],
-            SupportProtocols::RelayV2 => vec!["2".to_owned()],
+            SupportProtocols::Ping => vec!["2".to_owned(), "3".to_owned()],
+            SupportProtocols::Discovery => vec!["2".to_owned(), "2.1".to_owned(), "3".to_owned()],
+            SupportProtocols::Identify => vec!["2".to_owned(), "3".to_owned()],
+            SupportProtocols::Feeler => vec!["2".to_owned(), "3".to_owned()],
+            SupportProtocols::DisconnectMessage => {
+                vec!["2".to_owned(), "3".to_owned()]
+            }
+            SupportProtocols::Sync => vec!["2".to_owned(), "3".to_owned()],
+            SupportProtocols::Relay => vec!["3".to_owned()],
+            SupportProtocols::Time => vec!["2".to_owned(), "3".to_owned()],
+            SupportProtocols::Alert => vec!["2".to_owned(), "3".to_owned()],
+            SupportProtocols::RelayV2 => vec!["2".to_owned(), "3".to_owned()],
         }
     }
 

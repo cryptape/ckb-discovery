@@ -59,7 +59,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         }
         service_builder
             .forever(true)
-            .key_pair(SecioKeyPair::secp256k1_generated())
+            .handshake_type(SecioKeyPair::secp256k1_generated().into())
             .yamux_config(Config::default())
             .set_recv_buffer_size(24 * 1024 * 1024)
             .set_send_buffer_size(24 * 1024 * 1024)

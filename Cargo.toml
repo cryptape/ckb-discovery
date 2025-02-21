@@ -5,25 +5,23 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [workspace]
-members = [
-    "marci",
-    "types",
-    "exposed",
-]
+members = ["marci", "types", "exposed"]
 
 [dependencies]
-paho-mqtt = { version = "0.12", default-features=false, features=["vendored-ssl"] }
+paho-mqtt = { version = "0.12", default-features = false, features = [
+    "vendored-ssl",
+] }
 tokio = { version = "1.32", features = ["full"] }
 tokio-util = { version = "0.7.8" }
 ckb-discovery-types = { path = "./types" }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1" }
-ckb-types = "0.111.0-rc11"
-p2p = { package = "tentacle", version = "0.4" }
+ckb-types = "0.120"
+p2p = { package = "tentacle", version = "0.6" }
 log = "0.4"
 env_logger = "0.10"
 async-trait = "0.1.73"
 snap = "1"
 bs58 = "0.5"
 nanoid = "0.4.0"
-futures = { version = "0.3"}
+futures = { version = "0.3" }

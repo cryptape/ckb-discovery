@@ -255,11 +255,15 @@ impl ServiceProtocol for Handler {
     async fn connected(&mut self, context: ProtocolContextMutRef<'_>, protocol_version: &str) {
         debug!(
             "Handler open protocol, protocol_name: {} address: {}",
-            context
-                .protocols()
-                .get(&context.proto_id())
-                .map(|p| p.name.as_str())
-                .unwrap_or_default(),
+            if context.proto_id == SupportProtocols::Discovery.protocol_id() {
+                "Discovery"
+            } else if context.proto_id == SupportProtocols::Identify.protocol_id() {
+                "Identify"
+            } else if context.proto_id == SupportProtocols::Sync.protocol_id() {
+                "Sync"
+            } else {
+                "Unknown"
+            },
             context.session.address
         );
 
@@ -271,11 +275,15 @@ impl ServiceProtocol for Handler {
     async fn disconnected(&mut self, context: ProtocolContextMutRef<'_>) {
         debug!(
             "Handler close protocol, protocol_name: {}, address: {:?}",
-            context
-                .protocols()
-                .get(&context.proto_id())
-                .map(|p| p.name.as_str())
-                .unwrap_or_default(),
+            if context.proto_id == SupportProtocols::Discovery.protocol_id() {
+                "Discovery"
+            } else if context.proto_id == SupportProtocols::Identify.protocol_id() {
+                "Identify"
+            } else if context.proto_id == SupportProtocols::Sync.protocol_id() {
+                "Sync"
+            } else {
+                "Unknown"
+            },
             context.session.address
         );
         // Other ops...
