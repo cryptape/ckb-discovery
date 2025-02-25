@@ -32,12 +32,16 @@ async fn peer_in_map(
         .keys(format!("peer.online.{}", peer_id))
         .await
         .unwrap_or_default();
+    let online2_keys: Vec<String> = client
+        .keys(format!("peer.online2.{}", peer_id))
+        .await
+        .unwrap_or_default();
     let unknown_keys: Vec<String> = client
         .keys(format!("peer.unknown.{}", peer_id))
         .await
         .unwrap_or_default();
     let mut builder = HttpResponse::Ok();
-    let in_map = !(online_keys.is_empty() && unknown_keys.is_empty());
+    let in_map = !(online_keys.is_empty() && online2_keys.is_empty() && unknown_keys.is_empty());
     builder.json(PeerStatus { peer_id, in_map })
 }
 
@@ -164,23 +168,31 @@ async fn get_peers(
     let peer_ids = reachable_keys_to_peer_ids(&keys);
 
     let online_keys: Vec<String> = client.keys("peer.online.*").await?;
+    let online2_keys: Vec<String> = client.keys("peer.online2.*").await?;
     let unknown_keys: Vec<String> = client.keys("peer.unknown.*").await?;
     let online_peers = keys_to_peer_ids(&online_keys);
+    let online2_peers = keys_to_peer_ids(&online2_keys);
     let unknown_peers = keys_to_peer_ids(&unknown_keys);
 
     let mut peers = Vec::new();
 
     for (index, peer_id) in peer_ids.into_iter().enumerate() {
-        if !online_peers.contains(&peer_id) && !unknown_peers.contains(&peer_id) {
+        if !online_peers.contains(&peer_id)
+            && !online2_peers.contains(&peer_id)
+            && !unknown_peers.contains(&peer_id)
+        {
             continue;
         }
         let version: String = if online_peers.contains(&peer_id) {
             client.get(format!("peer.online.{}", peer_id)).await?
+        } else if online2_peers.contains(&peer_id) {
+            client.get(format!("peer.online2.{}", peer_id)).await?
         } else {
             String::default()
         };
 
-        let version_short = if !online_peers.contains(&peer_id) {
+        let version_short = if !online_peers.contains(&peer_id) && !online2_peers.contains(&peer_id)
+        {
             "Unknown".to_string()
         } else if let Ok(regex) = Regex::new(r"^(.*?)[^0-9.].*$") {
             if let Some(captures) = regex.captures(&version.clone()) {
@@ -251,30 +263,30 @@ async fn add_node(node_id: String, req: HttpRequest) -> impl Responder {
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    let matches = clap::App::new("Marci")
+    let matches = clap::Command::new("Marci")
         .arg(
-            Arg::with_name("redis")
+            Arg::new("redis")
                 .long("redis-url")
-                .takes_value(true)
+                .action(clap::ArgAction::Set)
                 .required(true)
                 .default_value("redis://:CkBdIsCoVeRy@127.0.0.1")
                 .help("The URL of the Redis"),
         )
         .arg(
-            Arg::with_name("bind")
+            Arg::new("bind")
                 .long("bind")
-                .takes_value(true)
+                .action(clap::ArgAction::Set)
                 .required(false)
                 .default_value("0.0.0.0:1800")
                 .help("The address to bind the server to"),
         )
         .get_matches();
 
-    let bind = matches.value_of("bind").unwrap();
-    let redis_url = matches.value_of("redis").unwrap();
+    let bind = matches.get_one::<String>("bind").unwrap();
+    let redis_url = matches.get_one::<String>("redis").unwrap();
 
     // redis context
-    let redis_client = redis::Client::open(redis_url).expect("Error redis url!");
+    let redis_client = redis::Client::open(redis_url.as_str()).expect("Error redis url!");
     let con = redis_client
         .get_tokio_connection()
         .await
