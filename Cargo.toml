@@ -8,7 +8,7 @@ edition = "2021"
 members = ["marci", "types", "exposed"]
 
 [dependencies]
-paho-mqtt = { version = "0.12", default-features = false, features = [
+paho-mqtt = { version = "0.13", default-features = false, features = [
     "vendored-ssl",
 ] }
 tokio = { version = "1.32", features = ["full"] }

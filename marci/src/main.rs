@@ -13,7 +13,7 @@ use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
 use tokio::time::Duration;
 
-async fn _check_peer_online(con: &mut redis::aio::Connection, peer_id: String) -> bool {
+async fn _check_peer_online(con: &mut redis::aio::MultiplexedConnection, peer_id: String) -> bool {
     con.keys::<&String, Vec<String>>(&peer_id)
         .await
         .unwrap_or_default()
@@ -174,16 +174,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     env::set_var("RUST_LOG", "info");
     let ckb_node_default_timeout = env::var("CKB_NODE_DEFAULT_TIMEOUT")
         .unwrap_or("5184000".to_string())
-        .parse::<usize>()?;
+        .parse::<u64>()?;
     let ckb_node_ex_timeout = env::var("CKB_NODE_EX_DEFAULT_TIMEOUT")
         .unwrap_or("86400".to_string())
-        .parse::<usize>()?;
+        .parse::<u64>()?;
     let ckb_node_unknown_default_timeout = env::var("CKB_NODE_UNKNOWN_DEFAULT_TIMEOUT")
         .unwrap_or("1209600".to_string())
-        .parse::<usize>()?;
+        .parse::<u64>()?;
     let ckb_node_default_witnesses = env::var("CKB_NODE_DEFAULT_WITNESSES")
         .unwrap_or("3".to_string())
-        .parse::<usize>()?;
+        .parse::<u64>()?;
 
     let marci_broadcast_interval = env::var("MERCI_DEFAULT_INTERVAL")
         .unwrap_or("180".to_string())
@@ -242,7 +242,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // redis context
     let redis_client = redis::Client::open(redis_url)?;
-    let mut con = redis_client.get_tokio_connection().await?;
+    let mut con = redis_client.get_multiplexed_async_connection().await?;
 
     //mqtt context
     tokio::spawn(async move {
@@ -316,12 +316,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let last_seen_key = format!(peer_seen_key_format!(), peer.info.peer_id);
                 if peer.is_ex {
                     con.set_ex(online_key.clone(), peer.version.clone(), ckb_node_ex_timeout).await?;
-                    con.set_ex(online2_key.clone(), peer.version, ckb_node_default_timeout).await?;
+                    con.set_ex(online2_key.clone(), peer.version.clone(), ckb_node_default_timeout).await?;
                 } else {
                     con.set_ex(online_key.clone(), peer.version.clone(), ckb_node_default_timeout).await?;
                 }
                 con.set(last_seen_key, SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs()).await?;
                 con.del(unknown_key).await?;
+
+                debug!("Online key set {} version: {}", peer.info.peer_id, peer.version);
             },
             Some(msg) = unknown_rx.recv() => {
                 let peer: NodeMetaInfo = msg;
@@ -331,10 +333,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let online_key = format!(online_peer_key_format!(), peer.peer_id);
                 if let Ok(version) = con.get::<String, String>(online_key.clone()).await {
                     debug!("Online key exists! version: {}", version);
-                    con.expire::<String, usize>(online_key, ckb_node_default_timeout);
+                    con.expire::<String, usize>(online_key, ckb_node_default_timeout.try_into().unwrap()).await?;
                 } else {
                     debug!("Try verify witnesses...");
-                    let witnesses : usize = con.scard(format!(reachable_peer_key_format!(), peer.peer_id)).await.unwrap_or_default();
+                    let witnesses : u64 = con.scard(format!(reachable_peer_key_format!(), peer.peer_id)).await.unwrap_or_default();
                     debug!("Witnesses of {} is {}", peer.peer_id, witnesses);
                     if witnesses >= ckb_node_default_witnesses {
                         info!("unknown peer {} upgraded into online since witnesses = {}", peer.peer_id, witnesses);
@@ -382,11 +384,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
                 let peers_reachable = reachable_peer_keys_vec.iter().map(|key| key.rsplit_once('.').map(|(_, part)| part).unwrap_or("")).collect::<Vec<_>>();
 
-                let online_peer_keys_vec: Vec<String> = con.keys("peer.online.*").await?;
-                let peers_online = online_peer_keys_vec.iter().map(|key| key.rsplit_once('.').map(|(_, part)| part).unwrap_or("")).collect::<Vec<_>>();
-
                 info!("Broadcasting reachable peers to dialers...");
-                for peer_id in peers_reachable.iter().filter(|x| !peers_online.contains(x)) {
+                for peer_id in peers_reachable.iter() {
                     // get addresses
                     let raw_info: Vec<String> = con.smembers(format!(peer_ip_key_format!(), peer_id)).await.unwrap_or_default();
                     let mut addresses = Vec::new();

@@ -6,9 +6,9 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-redis = { version = "0.23", features = ["tokio-comp", "json"] }
+redis = { version = "0.29", features = ["tokio-comp", "json"] }
 tokio = { version = "1.32", features = ["full"] }
-paho-mqtt = { version = "0.12", default-features = false, features = [
+paho-mqtt = { version = "0.13", default-features = false, features = [
     "vendored-ssl",
 ] }
 ckb-discovery-types = { path = "../types" }

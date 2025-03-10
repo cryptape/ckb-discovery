@@ -16,7 +16,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::Mutex;
 
 struct ServiceData {
-    client: Data<Mutex<redis::aio::Connection>>,
+    client: Data<Mutex<redis::aio::MultiplexedConnection>>,
     last_cache_update: Mutex<SystemTime>,
     data: Mutex<Vec<Peer>>,
 }
@@ -128,7 +128,7 @@ fn keys_to_peer_ids(keys: &[String]) -> Vec<&str> {
 }
 
 async fn last_update(
-    client: &Data<Mutex<redis::aio::Connection>>,
+    client: &Data<Mutex<redis::aio::MultiplexedConnection>>,
 ) -> Result<ServiceStatus, redis::RedisError> {
     let mut client = client.lock().await;
     match client.get("service.last_update".to_string()).await {
@@ -146,7 +146,7 @@ async fn get_peers(
     network: CKBNetworkType,
     _offline_min: u64,
     _unknown_offline_min: u64,
-    client: &Mutex<redis::aio::Connection>,
+    client: &Mutex<redis::aio::MultiplexedConnection>,
 ) -> Result<Vec<Peer>, redis::RedisError> {
     let mut client = client.lock().await;
     let keys: Vec<String> = match network {
@@ -288,7 +288,7 @@ async fn main() -> std::io::Result<()> {
     // redis context
     let redis_client = redis::Client::open(redis_url.as_str()).expect("Error redis url!");
     let con = redis_client
-        .get_tokio_connection()
+        .get_multiplexed_async_connection()
         .await
         .expect("Can not get redis context!");
     let client = Data::new(Mutex::new(con));
