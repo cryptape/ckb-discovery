@@ -175,7 +175,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let ckb_node_default_timeout = env::var("CKB_NODE_DEFAULT_TIMEOUT")
         .unwrap_or("5184000".to_string())
         .parse::<u64>()?;
-    let ckb_node_ex_timeout = env::var("CKB_NODE_EX_DEFAULT_TIMEOUT")
+    let _ckb_node_ex_timeout = env::var("CKB_NODE_EX_DEFAULT_TIMEOUT")
         .unwrap_or("86400".to_string())
         .parse::<u64>()?;
     let ckb_node_unknown_default_timeout = env::var("CKB_NODE_UNKNOWN_DEFAULT_TIMEOUT")
@@ -314,8 +314,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let online2_key = format!(online2_peer_key_format!(), peer.info.peer_id);
                 let unknown_key = format!(unknown_peer_key_format!(), peer.info.peer_id);
                 let last_seen_key = format!(peer_seen_key_format!(), peer.info.peer_id);
-                if peer.is_ex {
-                    con.set_ex(online_key.clone(), peer.version.clone(), ckb_node_ex_timeout).await?;
+                if let Ok(_) = con.get::<String, String>(online_key.clone()).await {
+                    con.expire::<String, usize>(online_key.clone(), ckb_node_default_timeout.try_into().unwrap()).await?;
+                } else if peer.is_ex {
                     con.set_ex(online2_key.clone(), peer.version.clone(), ckb_node_default_timeout).await?;
                 } else {
                     con.set_ex(online_key.clone(), peer.version.clone(), ckb_node_default_timeout).await?;
