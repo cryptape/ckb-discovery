@@ -33,6 +33,12 @@ macro_rules! online2_peer_key_format {
     };
 }
 
+macro_rules! online_ip_key_format {
+    () => {
+        "online.{}.ip"
+    };
+}
+
 macro_rules! reachable_peer_key_format {
     () => {
         "peer.reachable.{}"
@@ -165,6 +171,13 @@ pub async fn query_by_reachable(reachable: &ReachableInfo) -> Option<IpDetails> 
         if let Ok(res) = lookup_ipinfo(addr.address.to_string().as_str()).await {
             return Some(res);
         }
+    }
+    None
+}
+
+pub async fn query_by_ip(ip: &EndpointInfo) -> Option<IpDetails> {
+    if let Ok(res) = lookup_ipinfo(ip.address.to_string().as_str()).await {
+        return Some(res);
     }
     None
 }
@@ -317,12 +330,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 if let Ok(_) = con.get::<String, String>(online_key.clone()).await {
                     con.expire::<String, usize>(online_key.clone(), ckb_node_default_timeout.try_into().unwrap()).await?;
                 } else if peer.is_ex {
-                    con.set_ex(online2_key.clone(), peer.version.clone(), ckb_node_default_timeout).await?;
+                    con.set_ex::<_, _, ()>(online2_key.clone(), peer.version.clone(), ckb_node_default_timeout).await?;
                 } else {
-                    con.set_ex(online_key.clone(), peer.version.clone(), ckb_node_default_timeout).await?;
+                    con.set_ex::<_, _, ()>(online_key.clone(), peer.version.clone(), ckb_node_default_timeout).await?;
                 }
-                con.set(last_seen_key, SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs()).await?;
-                con.del(unknown_key).await?;
+                if let Some(addr) = peer.info.addresses.first() {
+                    con.set_ex::<_, _, ()>(format!(online_ip_key_format!(), peer.info.peer_id), serde_json::to_string(&addr).unwrap_or_default(), ckb_node_default_timeout).await?;
+                    if let Some(ip) = query_by_ip(addr).await {
+                        con.set::<_, _, ()>(format!(peer_country_key_format!(), peer.info.peer_id), ip.country).await?;
+                        con.set::<_, _, ()>(format!(peer_city_key_format!(), peer.info.peer_id), ip.city).await?;
+                        con.set::<_, _, ()>(format!(peer_region_key_format!(), peer.info.peer_id), ip.region).await?;
+                        con.set::<_, _, ()>(format!(peer_pos_key_format!(), peer.info.peer_id), ip.loc).await?;
+                    }
+                }
+                con.set::<_, _, ()>(last_seen_key, SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs()).await?;
+                con.del::<_, ()>(unknown_key).await?;
 
                 debug!("Online key set {} version: {}", peer.info.peer_id, peer.version);
             },
@@ -341,36 +363,36 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     debug!("Witnesses of {} is {}", peer.peer_id, witnesses);
                     if witnesses >= ckb_node_default_witnesses {
                         info!("unknown peer {} upgraded into online since witnesses = {}", peer.peer_id, witnesses);
-                        con.set_ex(unknown_key, "unknown", ckb_node_unknown_default_timeout).await?;
-                        con.del(reachable_key).await?;
+                        con.set_ex::<_, _, ()>(unknown_key, "unknown", ckb_node_unknown_default_timeout).await?;
+                        con.del::<_, ()>(reachable_key).await?;
                     }
                 }
 
-                con.set(last_seen_key, SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs()).await?;
+                con.set::<_, _, ()>(last_seen_key, SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs()).await?;
             },
             Some(msg) = reachable_rx.recv() => {
                 let peer: ReachableInfo = msg;
                 let reachable_key = format!(reachable_peer_key_format!(), peer.peer.peer_id);
                 let last_seen_key = format!(peer_seen_key_format!(), peer.peer.peer_id);
                 let network_quick_key = format!(peer_network_quick_key_format!(), peer.peer.peer_id, peer.peer.network.into_str().to_lowercase());
-                con.sadd(reachable_key.clone(), peer.from.peer_id.clone()).await?;
-                con.set(network_quick_key, 0).await?;
+                con.sadd::<_, _, ()>(reachable_key.clone(), peer.from.peer_id.clone()).await?;
+                con.set::<_, _, ()>(network_quick_key, 0).await?;
                 for ip in peer.peer.addresses.iter() {
-                    con.sadd(format!(peer_ip_key_format!(), peer.clone().peer.peer_id), serde_json::to_string(&ip).unwrap_or_default()).await?;
+                    con.sadd::<_, _, ()>(format!(peer_ip_key_format!(), peer.clone().peer.peer_id), serde_json::to_string(&ip).unwrap_or_default()).await?;
                 }
                 let network_key = format!(peer_network_key_format!(), peer.peer.peer_id);
-                con.set(network_key, peer.peer.network.into_str()).await?;
-                con.set(last_seen_key, SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs()).await?;
+                con.set::<_, _, ()>(network_key, peer.peer.network.into_str()).await?;
+                con.set::<_, _, ()>(last_seen_key, SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs()).await?;
 
                 // Update Ip info
                 let country: String =  con.get(format!(peer_country_key_format!(), peer.peer.peer_id)).await.unwrap_or_default();
                 if country.is_empty() {
                     if let Some(ip) = query_by_reachable(&peer).await {
-                    con.set(format!(peer_country_key_format!(), peer.peer.peer_id), ip.country).await?;
-                    con.set(format!(peer_city_key_format!(), peer.peer.peer_id), ip.city).await?;
-                    con.set(format!(peer_region_key_format!(), peer.peer.peer_id), ip.region).await?;
-                    con.set(format!(peer_pos_key_format!(), peer.peer.peer_id), ip.loc).await?;
-                }
+                        con.set::<_, _, ()>(format!(peer_country_key_format!(), peer.peer.peer_id), ip.country).await?;
+                        con.set::<_, _, ()>(format!(peer_city_key_format!(), peer.peer.peer_id), ip.city).await?;
+                        con.set::<_, _, ()>(format!(peer_region_key_format!(), peer.peer.peer_id), ip.region).await?;
+                        con.set::<_, _, ()>(format!(peer_pos_key_format!(), peer.peer.peer_id), ip.loc).await?;
+                    }
                 }
 
                 // Update Service Info
