@@ -21,6 +21,44 @@ struct ServiceData {
     data: Mutex<Vec<Peer>>,
 }
 
+async fn get_peer_info(
+    peer_id: &str,
+    client: &mut redis::aio::MultiplexedConnection,
+) -> (
+    Option<String>,
+    Option<String>,
+    Option<f64>,
+    Option<f64>,
+    u64,
+) {
+    let country: Option<String> = client
+        .get(format!("peer_info.{}.country", peer_id))
+        .await
+        .unwrap_or_default();
+    let city: Option<String> = client
+        .get(format!("peer_info.{}.city", peer_id))
+        .await
+        .unwrap_or_default();
+    let (latitude, longitude) = match client
+        .get::<String, String>(format!("peer_info.{}.pos", peer_id))
+        .await
+    {
+        Ok(loc) => {
+            let mut lat_lon = loc.split(',');
+            // Parse each part to f64, providing a default if the value can't be parsed
+            let latitude: Option<f64> = lat_lon.next().and_then(|s| f64::from_str(s).ok());
+            let longitude: Option<f64> = lat_lon.next().and_then(|s| f64::from_str(s).ok());
+            (latitude, longitude)
+        }
+        _ => (None, None),
+    };
+    let timestamp: u64 = client
+        .get(format!("peer_info.{}.last_seen", peer_id))
+        .await
+        .unwrap_or_default();
+    (country, city, latitude, longitude, timestamp)
+}
+
 async fn peer_in_map(
     query_params: web::Query<PeerQueryParams>,
     data: Data<ServiceData>,
@@ -28,21 +66,110 @@ async fn peer_in_map(
     let client = &data.client;
     let mut client = client.lock().await;
     let peer_id = query_params.peer_id.clone();
+
     let online_keys: Vec<String> = client
         .keys(format!("peer.online.{}", peer_id))
         .await
         .unwrap_or_default();
+    if !online_keys.is_empty() {
+        let version: String = client
+            .get(format!("peer.online.{}", peer_id))
+            .await
+            .unwrap_or_default();
+        let version_short = if let Ok(regex) = Regex::new(r"^(.*?)[^0-9.].*$") {
+            if let Some(captures) = regex.captures(&version.clone()) {
+                captures[1].to_owned()
+            } else {
+                version.clone()
+            }
+        } else {
+            version.clone()
+        };
+        let (country, city, latitude, longitude, timestamp) =
+            get_peer_info(&peer_id, &mut client).await;
+        let last_seen = DateTime::<Utc>::from(UNIX_EPOCH + Duration::from_secs(timestamp)).into();
+        return HttpResponse::Ok().json(PeerStatus {
+            peer_id,
+            in_map: true,
+            info: Some(Peer {
+                id: 0,
+                version,
+                version_short,
+                last_seen: Some(last_seen),
+                country,
+                city,
+                latitude,
+                longitude,
+                node_type: 0,
+            }),
+        });
+    }
     let online2_keys: Vec<String> = client
         .keys(format!("peer.online2.{}", peer_id))
         .await
         .unwrap_or_default();
+    if !online2_keys.is_empty() {
+        let version: String = client
+            .get(format!("peer.online2.{}", peer_id))
+            .await
+            .unwrap_or_default();
+        let version_short = if let Ok(regex) = Regex::new(r"^(.*?)[^0-9.].*$") {
+            if let Some(captures) = regex.captures(&version.clone()) {
+                captures[1].to_owned()
+            } else {
+                version.clone()
+            }
+        } else {
+            version.clone()
+        };
+        let (country, city, latitude, longitude, timestamp) =
+            get_peer_info(&peer_id, &mut client).await;
+        let last_seen = DateTime::<Utc>::from(UNIX_EPOCH + Duration::from_secs(timestamp)).into();
+        return HttpResponse::Ok().json(PeerStatus {
+            peer_id,
+            in_map: true,
+            info: Some(Peer {
+                id: 0,
+                version,
+                version_short,
+                last_seen: Some(last_seen),
+                country,
+                city,
+                latitude,
+                longitude,
+                node_type: 0,
+            }),
+        });
+    }
     let unknown_keys: Vec<String> = client
         .keys(format!("peer.unknown.{}", peer_id))
         .await
         .unwrap_or_default();
-    let mut builder = HttpResponse::Ok();
-    let in_map = !(online_keys.is_empty() && online2_keys.is_empty() && unknown_keys.is_empty());
-    builder.json(PeerStatus { peer_id, in_map })
+    if !unknown_keys.is_empty() {
+        let (country, city, latitude, longitude, timestamp) =
+            get_peer_info(&peer_id, &mut client).await;
+        let last_seen = DateTime::<Utc>::from(UNIX_EPOCH + Duration::from_secs(timestamp)).into();
+        return HttpResponse::Ok().json(PeerStatus {
+            peer_id,
+            in_map: true,
+            info: Some(Peer {
+                id: 0,
+                version: String::default(),
+                version_short: "Unknown".to_string(),
+                last_seen: Some(last_seen),
+                country,
+                city,
+                latitude,
+                longitude,
+                node_type: 0,
+            }),
+        });
+    }
+    HttpResponse::Ok().json(PeerStatus {
+        peer_id,
+        in_map: false,
+        info: None,
+    })
 }
 
 // Define a handler function for the "/peer" endpoint

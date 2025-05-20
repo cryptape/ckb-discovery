@@ -40,6 +40,7 @@ pub struct PeerQueryParams {
 pub struct PeerStatus {
     pub(crate) peer_id: String,
     pub(crate) in_map: bool,
+    pub(crate) info: Option<Peer>,
 }
 
 fn default_network() -> String {
