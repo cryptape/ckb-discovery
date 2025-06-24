@@ -1121,6 +1121,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "fast-socks5"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d09fe4a491909a716088083eeb5bcc25427330fdbcd4ecd3dfa5469b3da795df"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "log",
+ "thiserror",
+ "tokio",
+ "tokio-stream",
+]
+
+[[package]]
 name = "faster-hex"
 version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2080,9 +2094,9 @@ dependencies = [
 
 [[package]]
 name = "paho-mqtt"
-version = "0.13.1"
+version = "0.13.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4cc4a07a3f748f8272b26f253416c0d9452c423910c563d7633949f43df9efea"
+checksum = "e2a9dc54c16b2e290ab3045b214a2a4effb61a42cf920cc83aa250367a4cceed"
 dependencies = [
  "async-channel",
  "crossbeam-channel",
@@ -2096,9 +2110,9 @@ dependencies = [
 
 [[package]]
 name = "paho-mqtt-sys"
-version = "0.10.1"
+version = "0.10.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "73fa36b9139ebaed61b42475614862a20db5fea1c1bb80374faab009f0839c7a"
+checksum = "4d3094e35ab92c9ffa90775d8faad0e8ecac0a0ed4c409c3e683cbf84f784287"
 dependencies = [
  "cmake",
  "openssl-sys",
@@ -2736,12 +2750,13 @@ dependencies = [
 
 [[package]]
 name = "tentacle"
-version = "0.6.7"
+version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7a3374cb0b9cf25499dcb2e9ecf199af2f778b8d40dd01c413536de5b1574a2b"
+checksum = "c93437528aede81cca2ad8e41569d988b8ca2f13e50a03864f772d1b148314ea"
 dependencies = [
  "async-trait",
  "bytes",
+ "fast-socks5",
  "futures",
  "js-sys",
  "libc",
@@ -2756,6 +2771,7 @@ dependencies = [
  "tokio",
  "tokio-util",
  "tokio-yamux",
+ "url",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "winapi",
@@ -2763,9 +2779,9 @@ dependencies = [
 
 [[package]]
 name = "tentacle-multiaddr"
-version = "0.3.5"
+version = "0.3.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "35d1c1fa03d7fbdde1314f89e740cf5dbb5484ccc2b13fff9b82d4ddd0d51cef"
+checksum = "11d2d1d3511bbe6d6a662ee13616a31268d0558c73d25dfe6b5a5dcb376719c7"
 dependencies = [
  "arrayref",
  "bs58",
@@ -2779,9 +2795,9 @@ dependencies = [
 
 [[package]]
 name = "tentacle-secio"
-version = "0.6.5"
+version = "0.6.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "01d1c8be16ed68e4d69b60e445d453c392d07e613fe9fab0688d46910f6dd013"
+checksum = "60516aaca2ce3d00ef741d1bb01216921a062371bb63dd2ef53775b42afb9865"
 dependencies = [
  "bs58",
  "bytes",
@@ -2929,6 +2945,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "tokio-stream"
+version = "0.1.17"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "eca58d7bba4a75707817a2c44174253f9236b2d5fbd055602e9d5c07c139a047"
+dependencies = [
+ "futures-core",
+ "pin-project-lite",
+ "tokio",
+]
+
+[[package]]
 name = "tokio-util"
 version = "0.7.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2943,9 +2970,9 @@ dependencies = [
 
 [[package]]
 name = "tokio-yamux"
-version = "0.3.12"
+version = "0.3.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1142259036fa9b1eb7aa5ac810af10cab472a9c0556715cc31627beb50fca012"
+checksum = "27d30d76fd9e772524ba2c2ea08015f185bfe5cd06dcb59cfde5b7a6eb30ca32"
 dependencies = [
  "bytes",
  "futures",

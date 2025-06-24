@@ -161,6 +161,8 @@ impl Handler {
                                 meta.addresses.push(addr_to_endpoint(&endpoint));
                             }
                         }
+                        // filter out loopback addresses
+                        meta.addresses.retain(|e| !e.address.is_loopback());
                         let mqtt_context = self.mqtt_context.clone().to_owned();
 
                         tokio::spawn(async move {

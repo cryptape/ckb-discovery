@@ -17,7 +17,7 @@ ckb-discovery-types = { path = "./types" }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1" }
 ckb-types = "0.120"
-p2p = { package = "tentacle", version = "0.6" }
+p2p = { package = "tentacle", version = "0.7" }
 log = "0.4"
 env_logger = "0.10"
 async-trait = "0.1.73"
