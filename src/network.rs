@@ -102,12 +102,18 @@ pub fn addr_to_endpoint(addr: &Multiaddr) -> EndpointInfo {
 pub fn meta_info_to_addr(meta: &NodeMetaInfo) -> Vec<Result<Multiaddr, p2p::multiaddr::Error>> {
     meta.addresses
         .iter()
-        .map(|x| match x.address {
-            IpAddr::V4(addr) => {
-                format!("/ip4/{}/tcp/{}/p2p/{}", addr, x.port, meta.peer_id).parse()
-            }
-            IpAddr::V6(addr) => {
-                format!("/ip6/{}/tcp/{}/p2p/{}", addr, x.port, meta.peer_id).parse()
+        .filter_map(|x| {
+            if x.address.is_loopback() {
+                None
+            } else {
+                match x.address {
+                    IpAddr::V4(addr) => {
+                        Some(format!("/ip4/{}/tcp/{}/p2p/{}", addr, x.port, meta.peer_id).parse())
+                    }
+                    IpAddr::V6(addr) => {
+                        Some(format!("/ip6/{}/tcp/{}/p2p/{}", addr, x.port, meta.peer_id).parse())
+                    }
+                }
             }
         })
         .collect::<Vec<Result<Multiaddr, p2p::multiaddr::Error>>>()
