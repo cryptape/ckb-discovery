@@ -79,18 +79,18 @@ impl SupportProtocols {
     /// Support versions
     pub fn support_versions(&self) -> Vec<String> {
         match self {
-            SupportProtocols::Ping => vec!["2".to_owned(), "3".to_owned()],
-            SupportProtocols::Discovery => vec!["2".to_owned(), "2.1".to_owned(), "3".to_owned()],
-            SupportProtocols::Identify => vec!["2".to_owned(), "3".to_owned()],
-            SupportProtocols::Feeler => vec!["2".to_owned(), "3".to_owned()],
+            SupportProtocols::Ping => vec!["3".to_owned()],
+            SupportProtocols::Discovery => vec!["3".to_owned()],
+            SupportProtocols::Identify => vec!["3".to_owned()],
+            SupportProtocols::Feeler => vec!["3".to_owned()],
             SupportProtocols::DisconnectMessage => {
-                vec!["2".to_owned(), "3".to_owned()]
+                vec!["3".to_owned()]
             }
-            SupportProtocols::Sync => vec!["2".to_owned(), "3".to_owned()],
+            SupportProtocols::Sync => vec!["3".to_owned()],
             SupportProtocols::Relay => vec!["3".to_owned()],
-            SupportProtocols::Time => vec!["2".to_owned(), "3".to_owned()],
-            SupportProtocols::Alert => vec!["2".to_owned(), "3".to_owned()],
-            SupportProtocols::RelayV2 => vec!["2".to_owned(), "3".to_owned()],
+            SupportProtocols::Time => vec!["3".to_owned()],
+            SupportProtocols::Alert => vec!["3".to_owned()],
+            SupportProtocols::RelayV2 => vec!["3".to_owned()],
         }
     }
 

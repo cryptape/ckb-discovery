@@ -196,7 +196,7 @@ impl Handler {
 #[async_trait]
 impl ServiceHandle for Handler {
     /// Handling runtime errors
-    async fn handle_error(&mut self, _control: &mut ServiceContext, error: ServiceError) {
+    async fn handle_error(&mut self, control: &mut ServiceContext, error: ServiceError) {
         match &error {
             ServiceError::DialerError { address, error } => {
                 // failed to dial, report unknown
@@ -214,7 +214,11 @@ impl ServiceHandle for Handler {
                     error!("Failed to publish address to mqtt, error: {:?}!", error);
                 }
             }
-            ServiceError::ProtocolSelectError { .. } => {} //discard this error
+            ServiceError::ProtocolSelectError {
+                session_context, ..
+            } => {
+                let _ignore = control.disconnect(session_context.id).await;
+            } //discard this error
             _ => {
                 error!("ServiceHandler detect error: {:?}", error);
             }
