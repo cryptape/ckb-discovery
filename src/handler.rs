@@ -95,23 +95,28 @@ impl Handler {
                         full,
                         is_ex: false,
                     };
-                    let mqtt_context = self.mqtt_context.clone().to_owned();
+                    if peer_info.version.starts_with("0.2") {
+                        let mqtt_context = self.mqtt_context.clone().to_owned();
 
-                    tokio::spawn(async move {
-                        if let Err(error) = mqtt_context
-                            .publish(mqtt::Message::new(
-                                "peer/online",
-                                serde_json::to_vec(&peer_info).unwrap_or_default(),
-                                mqtt::QOS_1,
-                            ))
-                            .await
-                        {
-                            error!(
-                                "Failed to publish peer {:?} to online, error: {:?}!",
-                                peer_info, error
-                            );
-                        }
-                    });
+                        tokio::spawn(async move {
+                            if let Err(error) = mqtt_context
+                                .publish(mqtt::Message::new(
+                                    "peer/online",
+                                    serde_json::to_vec(&peer_info).unwrap_or_default(),
+                                    mqtt::QOS_1,
+                                ))
+                                .await
+                            {
+                                error!(
+                                    "Failed to publish peer {:?} to online, error: {:?}!",
+                                    peer_info, error
+                                );
+                            }
+                        });
+                    } else {
+                        need_disconnect = true;
+                    }
+
                     // if no full or  no support discovery protocol, just disconnect it
                     if !(full || client_flag & 0b10 == 0b10) {
                         need_disconnect = true;
