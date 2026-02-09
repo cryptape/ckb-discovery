@@ -68,7 +68,7 @@ impl Handler {
     }
 
     async fn connected_discovery(&mut self, context: &ProtocolContextMutRef<'_>, _version: &str) {
-        let discovery_get_node_message = build_discovery_get_nodes(None, 1000u32, 1u32);
+        let discovery_get_node_message = build_discovery_get_nodes(None, 1000u32, 0b1110);
 
         let message_bytes = discovery_get_node_message.as_bytes();
         if context.send_message(message_bytes).await.is_err() {

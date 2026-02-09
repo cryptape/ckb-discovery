@@ -87,6 +87,12 @@ macro_rules! peer_region_key_format {
     };
 }
 
+macro_rules! peer_full_key_format {
+    () => {
+        "peer_info.{}.full"
+    };
+}
+
 macro_rules! peer_pos_key_format {
     () => {
         "peer_info.{}.pos"
@@ -343,6 +349,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         con.set::<_, _, ()>(format!(peer_pos_key_format!(), peer.info.peer_id), ip.loc).await?;
                     }
                 }
+                con.set::<_, _, ()>(format!(peer_full_key_format!(), peer.info.peer_id), peer.full).await?;
                 con.set::<_, _, ()>(last_seen_key, SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs()).await?;
                 con.del::<_, ()>(unknown_key).await?;
 

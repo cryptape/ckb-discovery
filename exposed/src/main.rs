@@ -29,6 +29,7 @@ async fn get_peer_info(
     Option<String>,
     Option<f64>,
     Option<f64>,
+    Option<bool>,
     u64,
 ) {
     let country: Option<String> = client
@@ -50,13 +51,25 @@ async fn get_peer_info(
             let longitude: Option<f64> = lat_lon.next().and_then(|s| f64::from_str(s).ok());
             (latitude, longitude)
         }
-        _ => (None, None),
-    };
+            _ => (None, None),
+        };
+    let full: Option<bool> = client
+        .get(format!("peer_info.{}.full", peer_id))
+        .await
+        .unwrap_or_default();
     let timestamp: u64 = client
         .get(format!("peer_info.{}.last_seen", peer_id))
         .await
         .unwrap_or_default();
-    (country, city, latitude, longitude, timestamp)
+    (country, city, latitude, longitude, full, timestamp)
+}
+
+fn node_type_from_full(full: Option<bool>) -> i32 {
+    match full {
+        Some(true) => 0,
+        Some(false) => 1,
+        None => 0,
+    }
 }
 
 async fn peer_in_map(
@@ -85,7 +98,7 @@ async fn peer_in_map(
         } else {
             version.clone()
         };
-        let (country, city, latitude, longitude, timestamp) =
+        let (country, city, latitude, longitude, full, timestamp) =
             get_peer_info(&peer_id, &mut client).await;
         let last_seen = DateTime::<Utc>::from(UNIX_EPOCH + Duration::from_secs(timestamp)).into();
         return HttpResponse::Ok().json(PeerStatus {
@@ -100,7 +113,7 @@ async fn peer_in_map(
                 city,
                 latitude,
                 longitude,
-                node_type: 0,
+                node_type: node_type_from_full(full),
             }),
         });
     }
@@ -122,7 +135,7 @@ async fn peer_in_map(
         } else {
             version.clone()
         };
-        let (country, city, latitude, longitude, timestamp) =
+        let (country, city, latitude, longitude, full, timestamp) =
             get_peer_info(&peer_id, &mut client).await;
         let last_seen = DateTime::<Utc>::from(UNIX_EPOCH + Duration::from_secs(timestamp)).into();
         return HttpResponse::Ok().json(PeerStatus {
@@ -137,7 +150,7 @@ async fn peer_in_map(
                 city,
                 latitude,
                 longitude,
-                node_type: 0,
+                node_type: node_type_from_full(full),
             }),
         });
     }
@@ -146,7 +159,7 @@ async fn peer_in_map(
         .await
         .unwrap_or_default();
     if !unknown_keys.is_empty() {
-        let (country, city, latitude, longitude, timestamp) =
+        let (country, city, latitude, longitude, full, timestamp) =
             get_peer_info(&peer_id, &mut client).await;
         let last_seen = DateTime::<Utc>::from(UNIX_EPOCH + Duration::from_secs(timestamp)).into();
         return HttpResponse::Ok().json(PeerStatus {
@@ -161,7 +174,7 @@ async fn peer_in_map(
                 city,
                 latitude,
                 longitude,
-                node_type: 0,
+                node_type: node_type_from_full(full),
             }),
         });
     }
@@ -354,6 +367,11 @@ async fn get_peers(
             _ => (None, None),
         };
 
+        let full: Option<bool> = client
+            .get(format!("peer_info.{}.full", peer_id))
+            .await
+            .unwrap_or_default();
+
         let timestamp: u64 = client
             .get(format!("peer_info.{}.last_seen", peer_id))
             .await
@@ -369,7 +387,7 @@ async fn get_peers(
             city,
             latitude,
             longitude,
-            node_type: 0,
+            node_type: node_type_from_full(full),
         });
     }
 
