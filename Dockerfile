@@ -5,7 +5,7 @@ COPY . .
 RUN apt-get update && apt-get install libssl-dev build-essential cmake -y
 RUN cargo build --release
 
-FROM debian:12
+FROM debian:13
 RUN apt-get update && apt-get install libssl3 ca-certificates -y
 RUN update-ca-certificates
 WORKDIR /app/ckb-discovery
