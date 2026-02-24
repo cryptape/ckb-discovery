@@ -5,7 +5,7 @@ COPY . .
 RUN cd /usr/src/ckb-discovery/exposed
 RUN cargo build -p exposed --release
 
-FROM debian:12
+FROM debian:13
 RUN apt-get update && apt-get install libssl3 -y
 WORKDIR /app/exposed
 COPY --from=build /usr/src/ckb-discovery/target/release/exposed /app/exposed
