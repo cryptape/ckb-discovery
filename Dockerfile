@@ -1,4 +1,4 @@
-FROM rust:1.85.0 as build
+FROM rust:1.93.1 AS build
 WORKDIR /usr/src/ckb-discovery
 LABEL author="Code Monad<codemonad@cryptape.com>"
 COPY . .
