@@ -15,7 +15,7 @@ use p2p::service::{ProtocolHandle, ProtocolMeta, ServiceError, ServiceEvent};
 use p2p::traits::{ServiceHandle, ServiceProtocol};
 use paho_mqtt as mqtt;
 use paho_mqtt::QOS_1;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 pub struct Handler {
     network_type: CKBNetworkType,
@@ -248,13 +248,23 @@ impl ServiceHandle for Handler {
 #[async_trait]
 impl ServiceProtocol for Handler {
     async fn init(&mut self, context: &mut ProtocolContext) {
-        let bootnodes = get_bootnodes(self.network_type);
-        for node in bootnodes {
-            debug!("Trying to dial {}", &node);
-            let dial_res = context
-                .dial(node.clone(), p2p::service::TargetProtocol::All)
-                .await;
-            debug!("Dial {} result: {:?}", &node, &dial_res);
+        if context.proto_id == SupportProtocols::Identify.protocol_id() {
+            let bootnodes = get_bootnodes(self.network_type);
+            for node in bootnodes {
+                debug!("Trying to dial {}", &node);
+                let dial_res = context
+                    .dial(node.clone(), p2p::service::TargetProtocol::All)
+                    .await;
+                debug!("Dial {} result: {:?}", &node, &dial_res);
+            }
+            context
+                .set_service_notify(
+                    SupportProtocols::Identify.protocol_id(),
+                    Duration::from_secs(12 * 60 * 60),
+                    1,
+                )
+                .await
+                .unwrap();
         }
     }
 
@@ -300,6 +310,20 @@ impl ServiceProtocol for Handler {
             self.received_discovery(context, data).await;
         } else if context.proto_id == SupportProtocols::Identify.protocol_id() {
             self.received_identify(context, data).await;
+        }
+    }
+
+    async fn notify(&mut self, _context: &mut ProtocolContext, token: u64) {
+        if token == 1 {
+            debug!("interval notify, try to redial bootnodes");
+            let bootnodes = get_bootnodes(self.network_type);
+            for node in bootnodes {
+                debug!("Trying to dial {}", &node);
+                let dial_res = _context
+                    .dial(node.clone(), p2p::service::TargetProtocol::All)
+                    .await;
+                debug!("Dial {} result: {:?}", &node, &dial_res);
+            }
         }
     }
 }
