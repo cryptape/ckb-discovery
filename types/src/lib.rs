@@ -11,8 +11,8 @@ pub enum CKBNetworkType {
 impl From<String> for CKBNetworkType {
     fn from(s: String) -> Self {
         match s.as_str() {
-            "mirana" | "ckb" | "main" => CKBNetworkType::Mirana,
-            "pudge" | "ckb_testnet" | "test" => CKBNetworkType::Pudge,
+            "mirana" | "ckb" | "main" | "mainnet" => CKBNetworkType::Mirana,
+            "pudge" | "ckb_testnet" | "test" | "testnet" => CKBNetworkType::Pudge,
             "dev" | "ckb_dev" => CKBNetworkType::Dev,
             _ => CKBNetworkType::Mirana,
         }
